@@ -1,0 +1,146 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="source\Game.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ImageRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\LoginScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PlayerPiece.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RankingScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RenderManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\TicTacToe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\AABB.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\AudioManager.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\AnimatedImageRenderer.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Button.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Game.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\GameOverScene.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ImageObject.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ImageRenderer.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\InputManager.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\LoginScene.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MainMenu.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\NetworkManager.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\NetworkProtocol.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\RenderManager.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Rigidbody.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Scene.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SceneManager.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Spawner.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TextField.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TextObject.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TextRenderer.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Renderer.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\RankingScene.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PlayerPiece.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TicTacToe.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TimeManager.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Transform.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Vector2.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\YouWonScene.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Object.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resources\player4.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\player1.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\player2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\player3.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{928b7f47-ab40-4e83-bef1-a04cb4a8e7e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header FIles">
+      <UniqueIdentifier>{e60e99f8-3e91-4029-9fe4-e991d67d93b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{d52a049f-afc0-4a76-b5d2-9beb60bf42a5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
