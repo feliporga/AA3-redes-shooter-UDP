@@ -6,7 +6,7 @@
 #include "SceneManager.h"
 #include "TicTacToe.h"
 
-#define SERVER_IP "127.0.0.1"
+#define SERVER_TCP_IP "127.0.0.1"
 #define SERVER_PORT 55000
 
 
@@ -301,7 +301,7 @@ public:
         socket.setBlocking(true); 
 
         
-        if (socket.connect(sf::IpAddress::resolve(SERVER_IP).value(), 55000) == sf::Socket::Status::Done) {
+        if (socket.connect(sf::IpAddress::resolve(SERVER_TCP_IP).value(), 55000) == sf::Socket::Status::Done) {
             isConnected = true;
 
             // enviamos el resultado num�rico // comentarios debug con ia para ayuda
@@ -327,7 +327,7 @@ public:
         socket.disconnect();
         socket.setBlocking(true);
 
-        if (socket.connect(sf::IpAddress::resolve(SERVER_IP).value(), 55000) == sf::Socket::Status::Done) {
+        if (socket.connect(sf::IpAddress::resolve(SERVER_TCP_IP).value(), 55000) == sf::Socket::Status::Done) {
             isConnected = true;
             std::cout << "[CLIENTE] Reconectado al servidor principal. Autenticando..." << std::endl;
 

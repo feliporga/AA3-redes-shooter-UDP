@@ -11,7 +11,7 @@
 #include "GameOverScene.h"
 
 void Game::Init() {
-    NM.ConnectToServer(SERVER_IP, SERVER_PORT);
+    NM.ConnectToServer(SERVER_TCP_IP, SERVER_PORT);
     RM->Init();
 
     AM.LoadSong("menuMusic");
