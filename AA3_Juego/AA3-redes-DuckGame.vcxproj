@@ -72,7 +72,7 @@
     <ProjectGuid>{08153aa4-4709-482c-9e09-2fc8d2eacaa5}</ProjectGuid>
     <RootNamespace>SDLGame</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>AA2-redes-3-en-raya</ProjectName>
+    <ProjectName>AA3-redes-DuckGame</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
