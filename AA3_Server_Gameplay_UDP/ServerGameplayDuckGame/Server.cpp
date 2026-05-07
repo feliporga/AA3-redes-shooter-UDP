@@ -135,33 +135,49 @@ bool Server::RegisterUser(const std::string& user, const std::string& password) 
 void Server::Run() {
     if (!ConnectDatabase()) return;
 
-    if (listener.listen(port) != sf::Socket::Status::Done) {
+    /*if (listener.listen(port) != sf::Socket::Status::Done) {
         std::cout << "[SERVER] Error fatal: No se pudo abrir el puerto " << port << std::endl;
         return;
+    }*/
+    if (socket.bind(BIND_PORT) == sf::Socket::Status::Done) {
+        std::cout << "Puerto bindado correctamente." << std::endl;
+    }
+    else {
+        std::cerr << "Hizo pum" << std::endl;
     }
 
     std::cout << "[SERVER] Encendido y escuchando en el puerto " << port << "..." << std::endl;
-    selector.add(listener);
+
     isRunning = true;
 
-    while (isRunning) {
-        if (selector.wait()) {
-            if (selector.isReady(listener)) {
-                AcceptNewClient();
-            }
-            else {
-                HandleClientPackets();
-            }
+    
+
+    while (isRunning) {  
+        if (socket.receive(buffer, sizeof(buffer), receivedData, senderIP, senderPort) == sf::Socket::Status::Done  ) {
+            //AcceptNewClient();
+			HandleBuffer(buffer, receivedData, senderIP.value(), senderPort);
+        }
+        else {
+            HandleClientPackets();
         }
     }
 }
 
+void Server::HandleBuffer(char* buffer, std::size_t size, sf::IpAddress ip, unsigned short port) {
+	std::size_t byteRead = 0;
+    int receivedData;
+	std::memcpy(&receivedData, buffer + byteRead, sizeof(int));
+	byteRead += sizeof(int);
+
+	PacketType type = static_cast<PacketType>(receivedData);
+    std::cout << "[SERVER] Buffer recibido de " << ip.toString() << ":" << port << " -> " << std::string(buffer, size) << std::endl;
+}
 void Server::AcceptNewClient() {
-    sf::TcpSocket* newClient = new sf::TcpSocket();
-    if (listener.accept(*newClient) == sf::Socket::Status::Done) {
+    sf::UdpSocket* newClient = new sf::UdpSocket();
+    if (socket.receive(buffer, sizeof(buffer), receivedData, senderIP, senderPort) == sf::Socket::Status::Done) {
         clients.push_back(newClient);
         selector.add(*newClient);
-        std::cout << "[SERVER] Nuevo cliente conectado desde: " << newClient->getRemoteAddress().value() << std::endl;
+        std::cout << "[SERVER] Nuevo cliente conectado desde: " << senderIP.value() << std::endl;
     }
     else {
         delete newClient;

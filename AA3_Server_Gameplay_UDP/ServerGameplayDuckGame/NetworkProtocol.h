@@ -20,7 +20,7 @@ enum class PacketType {
     //GAMEPLAY
     GameMove,
     UpdateBoard,
-
+    Shoot,
     //RESULTADOS Y ELO
     ReportResult,
     ResultAcknowledge

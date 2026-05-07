@@ -19,20 +19,21 @@
 #define PORT 56000
 #define HOST "127.0.0.1:3306"
 #define USER "root"
-#define PSSWRD "enti"
+#define PSSWRD ""
 #define DBNAME "tictactoe_db"
 #define MAX_POINTS 30
 #define MIN_POINTS 15
 #define INCREMENT 1
 #define OPPONENT_NUM 3
+#define BIND_PORT 55001
 class Server {
 private:
     unsigned short port;
     bool isRunning;
-    sf::TcpListener listener;
+    sf::UdpSocket socket;
     sf::SocketSelector selector;
-    std::vector<sf::TcpSocket*> clients;
-    std::map<sf::TcpSocket*, std::string> loggedInUsers;
+    std::vector<sf::UdpSocket*> clients;
+    std::map<sf::UdpSocket*, std::string> loggedInUsers;
 
     sql::Driver* driver;
     sql::Connection* con;
@@ -41,12 +42,17 @@ private:
     std::string dbPass = PSSWRD;
     std::string dbName = DBNAME;
 
+    char buffer[1024];
+    std::size_t receivedData;
+    std::optional <sf::IpAddress> senderIP;
+    unsigned short senderPort;
+
     // Estructura para una sala de 3 en Raya
     struct Room {
         std::string name;
-        sf::TcpSocket* player1 = nullptr;
-        sf::TcpSocket* player2 = nullptr; 
-        std::vector<sf::TcpSocket*> players;
+        sf::UdpSocket* player1 = nullptr;
+        sf::UdpSocket* player2 = nullptr; 
+        std::vector<sf::UdpSocket*> players;
         int board[NUM_ROWS][NUM_COLS]; // Tablero de 6x6 vacío
         int currentTurn = INITIAL_TURN;   
     };
@@ -81,7 +87,7 @@ private:
 
     void AcceptNewClient();
     void HandleClientPackets();
-
+    void HandleBuffer(char* buffer, std::size_t size, sf::IpAddress ip, unsigned short port);
     void SendRankingToClient(sf::TcpSocket* client);
 
 public:

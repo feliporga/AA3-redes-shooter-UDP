@@ -7,8 +7,9 @@
 #include "TicTacToe.h"
 
 #define SERVER_TCP_IP "127.0.0.1"
-#define SERVER_PORT 55000
-
+#define SERVER_UDP_IP "127.0.0.1"
+#define SERVER_TCP_PORT 55000
+#define SERVER_UDP_PORT 55001
 
 #define NM NetworkManager::Instance()
 
@@ -346,7 +347,7 @@ public:
 
     // resetear partida anterior
     void ResetP2P() {
-        for (auto* peer : p2pPeers) {
+        for (sf::TcpSocket* peer : p2pPeers) {
             peer->disconnect();
             delete peer;
         }
