@@ -16,7 +16,7 @@ RankingScene::RankingScene() : Scene() {
 }
 
 void RankingScene::CreateDummyRow(float yOffset, std::string name, std::string wins, std::string losses, std::string elo) {
-    float winW = RM->WINDOW_WIDTH;
+    float winW = (float)RM->WINDOW_WIDTH;
 
     TextObject* tName = new TextObject(name);
     tName->GetTransform()->position = Vector2(winW * 0.15f, yOffset);
@@ -44,7 +44,7 @@ void RankingScene::CreateDummyRow(float yOffset, std::string name, std::string w
 }
 
 void RankingScene::OnEnter() {
-    float winW = RM->WINDOW_WIDTH;
+    float winW = (float)RM->WINDOW_WIDTH;
 
     titleText = new TextObject("RANKING DE JUGADORES");
     titleText->GetTransform()->position = Vector2(winW / 2 - 150.0f, 50.0f);
@@ -94,21 +94,24 @@ void RankingScene::Update() {
 
     if (NM.newRankingAvailable) {
         float startY = 220.0f;
-        int rowCount = 0;
+        short rowCount = 0;
 
-        // Lista de jugadores que se muestran
         std::vector<std::string> drawnNames;
+        short totalRanked = (short)NM.lastRanking.size();
 
-        for (const auto& player : NM.lastRanking) {
+        // SUSTITUCIÓN DE AUTO POR BUCLE CLÁSICO
+        for (short i = 0; i < totalRanked; i++) {
+            PlayerRanking& player = NM.lastRanking[i];
 
-            // Comprobamos si el jugador ya está en el Top 10
             bool alreadyDrawn = false;
-            for (const std::string& drawnName : drawnNames) {
-                // Comparamos los nombres
+            short numDrawn = (short)drawnNames.size();
+
+            for (short j = 0; j < numDrawn; j++) {
+                std::string& drawnName = drawnNames[j];
                 if (drawnName.size() == player.name.size()) {
                     bool match = true;
-                    for (size_t i = 0; i < drawnName.size(); ++i) {
-                        if (std::tolower(drawnName[i]) != std::tolower(player.name[i])) {
+                    for (size_t k = 0; k < drawnName.size(); ++k) {
+                        if (std::tolower(drawnName[k]) != std::tolower(player.name[k])) {
                             match = false;
                             break;
                         }
@@ -120,21 +123,23 @@ void RankingScene::Update() {
                 }
             }
 
-            // Si ya sale no lo mostramos
-            if (alreadyDrawn) {
-                continue;
-            }
+            if (alreadyDrawn) continue;
 
-			// si es nuevo lo mostramos y lo añadimos a la lista de mostrados
             drawnNames.push_back(player.name);
             rowCount++;
 
             if (rowCount > 10) {
-                startY += 20.0f; // Espacio extra solo si llegamos a la fila 11
+                startY += 20.0f;
             }
 
             std::string displayName = std::to_string(player.pos) + ". " + player.name;
-            CreateDummyRow(startY, displayName, std::to_string(player.v), std::to_string(player.d), std::to_string(player.pts));
+
+            // Aquí usamos los 5 argumentos que pide tu función
+            CreateDummyRow(startY,
+                displayName,
+                std::to_string(player.v),
+                std::to_string(player.d),
+                std::to_string(player.pts));
 
             startY += 50.0f;
         }
@@ -145,7 +150,6 @@ void RankingScene::Update() {
 
 void RankingScene::Render() {
     Scene::Render();
-
-    float winW = RM->WINDOW_WIDTH;
+    float winW = (float)RM->WINDOW_WIDTH;
     RM->DrawRect((int)(winW * 0.15f), 190, (int)(winW * 0.80f), 2, 255, 255, 255, 255);
 }

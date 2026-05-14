@@ -24,7 +24,7 @@
     <ProjectGuid>{ea6c11bf-c697-48db-8cec-05305666501e}</ProjectGuid>
     <RootNamespace>DatabaseTest</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>AA3_ServerGameplayDuckGame</ProjectName>
+    <ProjectName>AA3_ServerGameplayDuckGameUDP</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
