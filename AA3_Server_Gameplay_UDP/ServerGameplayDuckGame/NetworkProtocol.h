@@ -21,6 +21,7 @@ enum class PacketType {
     GameMove,
     UpdateBoard,
     Shoot,
+    Jump,
     //RESULTADOS Y ELO
     ReportResult,
     ResultAcknowledge

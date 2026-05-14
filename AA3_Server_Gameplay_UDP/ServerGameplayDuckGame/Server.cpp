@@ -163,14 +163,41 @@ void Server::Run() {
     }
 }
 
-void Server::HandleBuffer(char* buffer, std::size_t size, sf::IpAddress ip, unsigned short port) {
+void Server::HandleBuffer(char* buffer, std::size_t size, std::optional<sf::IpAddress> ip, unsigned short port) {
 	std::size_t byteRead = 0;
-    int receivedData;
-	std::memcpy(&receivedData, buffer + byteRead, sizeof(int));
+    int receivedMessage;
+	std::memcpy(&receivedMessage, buffer + byteRead, sizeof(int));
 	byteRead += sizeof(int);
 
-	PacketType type = static_cast<PacketType>(receivedData);
-    std::cout << "[SERVER] Buffer recibido de " << ip.toString() << ":" << port << " -> " << std::string(buffer, size) << std::endl;
+	PacketType type = static_cast<PacketType>(receivedMessage);
+    //std::cout << "[SERVER] Buffer recibido de " << ip << ":" << port << " -> " << std::string(buffer, size) << std::endl;
+
+    if (type == PacketType::GameMove) {
+       // sf::UdpSocket* newClient = new sf::UdpSocket();
+        if (socket.receive(buffer, sizeof(buffer), receivedData, senderIP, senderPort) == sf::Socket::Status::Done) {
+            
+            std::cout << "[SERVER] Pide mover " << senderIP.value() << std::endl;
+        }
+    }
+
+    if(type==PacketType::Jump){
+      //  sf::UdpSocket* newClient = new sf::UdpSocket();
+        if (socket.receive(buffer, sizeof(buffer), receivedData, senderIP, senderPort) == sf::Socket::Status::Done) {
+            
+            std::cout << "[SERVER] Pide saltar " << senderIP.value() << std::endl;
+		}
+	}
+
+    if (type == PacketType::Shoot) {
+        //sf::UdpSocket* newClient = new sf::UdpSocket();
+        if (socket.receive(buffer, sizeof(buffer), receivedData, senderIP, senderPort) == sf::Socket::Status::Done) {
+
+            std::cout << "[SERVER] Pide disparar " << senderIP.value() << std::endl;
+        }
+    }
+     /*else {
+        HandleClientPackets();
+	}*/
 }
 void Server::AcceptNewClient() {
     sf::UdpSocket* newClient = new sf::UdpSocket();
@@ -184,197 +211,197 @@ void Server::AcceptNewClient() {
     }
 }
 
-void Server::HandleClientPackets() {
-    for (auto it = clients.begin(); it != clients.end(); ) {
-        sf::TcpSocket* client = *it;
+//void Server::HandleClientPackets() {
+//    for (auto it = clients.begin(); it != clients.end(); ) {
+//        sf::UdpSocket* client = *it;
+//
+//        if (selector.isReady(*client)) {
+//            sf::Packet packet;
+//            sf::Socket::Status status = client->receive(packet);
+//
+//            if (status == sf::Socket::Status::Done) {
+//                int typeInt;
+//                if (packet >> typeInt) {
+//                    PacketType type = static_cast<PacketType>(typeInt);
+//
+//                    if (type == PacketType::LoginRequest) {
+//                        std::string user, pass;
+//                        packet >> user >> pass;
+//                        std::cout << "[SERVER] Peticion de Login -> Usuario: " << user << std::endl;
+//
+//                        // --- 1. COMPROBACIÓN DE USUARIO YA CONECTADO ---
+//                        bool alreadyLoggedIn = false;
+//                        for (const auto& pair : loggedInUsers) {
+//                            // Convertimos a minúsculas para que "Felip" y "felip" cuenten como el mismo
+//                            std::string connectedUser = pair.second;
+//                            std::string incomingUser = user;
+//
+//                            if (connectedUser.size() == incomingUser.size()) {
+//                                bool match = true;
+//                                for (size_t i = 0; i < connectedUser.size(); ++i) {
+//                                    if (std::tolower(connectedUser[i]) != std::tolower(incomingUser[i])) {
+//                                        match = false;
+//                                        break;
+//                                    }
+//                                }
+//                                if (match) {
+//                                    alreadyLoggedIn = true;
+//                                    break;
+//                                }
+//                            }
+//                        }
+//
+//                        sf::Packet response;
+//
+//						// Checkear si ya hay un usuario con el mismo nombre conectado (ignorando mayúsculas/minúsculas)
+//
+//                        if (alreadyLoggedIn) {
+//                            std::cout << "[SERVER] Login rechazado. El usuario ya esta jugando en otro PC." << std::endl;
+//                            response << static_cast<int>(PacketType::LoginFailed);
+//                        }
+//                        else {
+//                            bool isValid = CheckUserLogin(user, pass);
+//
+//                            if (isValid) {
+//                                std::cout << "[SERVER] Login correcto." << std::endl;
+//                                loggedInUsers[client] = user;
+//                                response << static_cast<int>(PacketType::LoginSuccess);
+//                            }
+//                            else {
+//                                std::cout << "[SERVER] Login incorrecto." << std::endl;
+//                                response << static_cast<int>(PacketType::LoginFailed);
+//                            }
+//                        }
+//
+//                        client->send(response);
+//                    }
+//                    else if (type == PacketType::RegisterRequest) {
+//                        std::string user, pass;
+//                        packet >> user >> pass;
+//                        std::cout << "[SERVER] Peticion de Registro -> Usuario: " << user << std::endl;
+//
+//                        bool isRegistered = RegisterUser(user, pass);
+//
+//                        sf::Packet response;
+//                        if (isRegistered) {
+//                            std::cout << "[SERVER] Registro correcto. Usuario guardado en BD." << std::endl;
+//                            response << static_cast<int>(PacketType::RegisterSuccess);
+//                        }
+//                        else {
+//                            std::cout << "[SERVER] Registro fallido (el usuario ya existe)." << std::endl;
+//                            response << static_cast<int>(PacketType::RegisterFailed);
+//                        }
+//                        (void)client->send(response);
+//                    }
+//                    else if (type == PacketType::RankingRequest) {
+//                        std::cout << "[SERVER] " << loggedInUsers[client] << " ha pedido el Ranking." << std::endl;
+//                        SendRankingToClient(client);
+//                    }
+//                    else if (type == PacketType::CreateRoomRequest) {
+//                        std::string roomName;
+//                        packet >> roomName;
+//                        HandleCreateRoom(client, roomName);
+//                    }
+//                    else if (type == PacketType::JoinRoomRequest) {
+//                        std::string roomName;
+//                        packet >> roomName;
+//                        HandleJoinRoom(client, roomName);
+//                    } 
+//
+//                    else if (type == PacketType::ReportResult) {
+//                        std::string roomName;
+//                        int p1, p2, p3, p4;
+//                        // Leemos la sala y los 4 IDs num�ricos
+//                        packet >> roomName >> p1 >> p2 >> p3 >> p4;
+//
+//                        std::cout << "[DEBUG] Paquete de final de partida recibido. Sala: " << roomName << std::endl;
+//
+//                        std::vector<int> finalStandings = { p1, p2, p3, p4 };
+//                        HandleMatchResult(client, roomName, finalStandings);
+//                    }
+//                }
+//                ++it;
+//            }
+//            else if (status == sf::Socket::Status::Disconnected || status == sf::Socket::Status::Error) {
+//                std::cout << "[SERVER] Un cliente se ha desconectado." << std::endl;
+//                loggedInUsers.erase(client);
+//                selector.remove(*client);
+//                client->disconnect();
+//                delete client;
+//                it = clients.erase(it);
+//            }
+//            else {
+//                ++it;
+//            }
+//        }
+//        else {
+//            ++it;
+//        }
+//    }
+//}
 
-        if (selector.isReady(*client)) {
-            sf::Packet packet;
-            sf::Socket::Status status = client->receive(packet);
-
-            if (status == sf::Socket::Status::Done) {
-                int typeInt;
-                if (packet >> typeInt) {
-                    PacketType type = static_cast<PacketType>(typeInt);
-
-                    if (type == PacketType::LoginRequest) {
-                        std::string user, pass;
-                        packet >> user >> pass;
-                        std::cout << "[SERVER] Peticion de Login -> Usuario: " << user << std::endl;
-
-                        // --- 1. COMPROBACIÓN DE USUARIO YA CONECTADO ---
-                        bool alreadyLoggedIn = false;
-                        for (const auto& pair : loggedInUsers) {
-                            // Convertimos a minúsculas para que "Felip" y "felip" cuenten como el mismo
-                            std::string connectedUser = pair.second;
-                            std::string incomingUser = user;
-
-                            if (connectedUser.size() == incomingUser.size()) {
-                                bool match = true;
-                                for (size_t i = 0; i < connectedUser.size(); ++i) {
-                                    if (std::tolower(connectedUser[i]) != std::tolower(incomingUser[i])) {
-                                        match = false;
-                                        break;
-                                    }
-                                }
-                                if (match) {
-                                    alreadyLoggedIn = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        sf::Packet response;
-
-						// Checkear si ya hay un usuario con el mismo nombre conectado (ignorando mayúsculas/minúsculas)
-
-                        if (alreadyLoggedIn) {
-                            std::cout << "[SERVER] Login rechazado. El usuario ya esta jugando en otro PC." << std::endl;
-                            response << static_cast<int>(PacketType::LoginFailed);
-                        }
-                        else {
-                            bool isValid = CheckUserLogin(user, pass);
-
-                            if (isValid) {
-                                std::cout << "[SERVER] Login correcto." << std::endl;
-                                loggedInUsers[client] = user;
-                                response << static_cast<int>(PacketType::LoginSuccess);
-                            }
-                            else {
-                                std::cout << "[SERVER] Login incorrecto." << std::endl;
-                                response << static_cast<int>(PacketType::LoginFailed);
-                            }
-                        }
-
-                        client->send(response);
-                    }
-                    else if (type == PacketType::RegisterRequest) {
-                        std::string user, pass;
-                        packet >> user >> pass;
-                        std::cout << "[SERVER] Peticion de Registro -> Usuario: " << user << std::endl;
-
-                        bool isRegistered = RegisterUser(user, pass);
-
-                        sf::Packet response;
-                        if (isRegistered) {
-                            std::cout << "[SERVER] Registro correcto. Usuario guardado en BD." << std::endl;
-                            response << static_cast<int>(PacketType::RegisterSuccess);
-                        }
-                        else {
-                            std::cout << "[SERVER] Registro fallido (el usuario ya existe)." << std::endl;
-                            response << static_cast<int>(PacketType::RegisterFailed);
-                        }
-                        (void)client->send(response);
-                    }
-                    else if (type == PacketType::RankingRequest) {
-                        std::cout << "[SERVER] " << loggedInUsers[client] << " ha pedido el Ranking." << std::endl;
-                        SendRankingToClient(client);
-                    }
-                    else if (type == PacketType::CreateRoomRequest) {
-                        std::string roomName;
-                        packet >> roomName;
-                        HandleCreateRoom(client, roomName);
-                    }
-                    else if (type == PacketType::JoinRoomRequest) {
-                        std::string roomName;
-                        packet >> roomName;
-                        HandleJoinRoom(client, roomName);
-                    } 
-
-                    else if (type == PacketType::ReportResult) {
-                        std::string roomName;
-                        int p1, p2, p3, p4;
-                        // Leemos la sala y los 4 IDs num�ricos
-                        packet >> roomName >> p1 >> p2 >> p3 >> p4;
-
-                        std::cout << "[DEBUG] Paquete de final de partida recibido. Sala: " << roomName << std::endl;
-
-                        std::vector<int> finalStandings = { p1, p2, p3, p4 };
-                        HandleMatchResult(client, roomName, finalStandings);
-                    }
-                }
-                ++it;
-            }
-            else if (status == sf::Socket::Status::Disconnected || status == sf::Socket::Status::Error) {
-                std::cout << "[SERVER] Un cliente se ha desconectado." << std::endl;
-                loggedInUsers.erase(client);
-                selector.remove(*client);
-                client->disconnect();
-                delete client;
-                it = clients.erase(it);
-            }
-            else {
-                ++it;
-            }
-        }
-        else {
-            ++it;
-        }
-    }
-}
-
-void Server::SendRankingToClient(sf::TcpSocket* client) {
-    try {
-        std::string currentUser = loggedInUsers[client];
-
-        sql::Statement* stmt = con->createStatement();
-        sql::ResultSet* res = stmt->executeQuery("SELECT userName, points, wins, losses FROM users ORDER BY points DESC, wins DESC LIMIT 10");
-
-        sf::Packet response;
-        response << static_cast<int>(PacketType::RankingResponse);
-
-        struct PlayerData { int pos; std::string name; int pts; int v; int d; };
-        std::vector<PlayerData> ranking;
-        int currentPos = 1;
-
-        while (res->next()) {
-            ranking.push_back({ currentPos++, res->getString("userName"), res->getInt("points"), res->getInt("wins"), res->getInt("losses") });
-        }
-        delete res;
-        delete stmt;
-
-        if (currentUser != "") {
-            sql::PreparedStatement* pstmt = con->prepareStatement(
-                "SELECT userName, points, wins, losses, "
-                "(SELECT COUNT(*) + 1 FROM users WHERE points > u.points) AS myPos "
-                "FROM users u WHERE userName = ?"
-            );
-            pstmt->setString(1, currentUser);
-
-            sql::ResultSet* resMe = pstmt->executeQuery();
-            if (resMe->next()) {
-                ranking.push_back({
-                    resMe->getInt("myPos"),
-                    resMe->getString("userName"),
-                    resMe->getInt("points"),
-                    resMe->getInt("wins"),
-                    resMe->getInt("losses")
-                    });
-            }
-            delete resMe;
-            delete pstmt;
-        }
-
-        response << static_cast<int>(ranking.size());
-        for (const auto& p : ranking) {
-            response << p.pos << p.name << p.pts << p.v << p.d;
-        }
-
-        client->send(response);
-        std::cout << "[SERVER] Ranking enviado correctamente." << std::endl;
-
-    }
-    catch (sql::SQLException& e) {
-        std::cout << "[BD] Error SQL enviando ranking: " << e.what() << std::endl;
-    }
-}
+//void Server::SendRankingToClient(sf::TcpSocket* client) {
+//    try {
+//        std::string currentUser = loggedInUsers[client];
+//
+//        sql::Statement* stmt = con->createStatement();
+//        sql::ResultSet* res = stmt->executeQuery("SELECT userName, points, wins, losses FROM users ORDER BY points DESC, wins DESC LIMIT 10");
+//
+//        sf::Packet response;
+//        response << static_cast<int>(PacketType::RankingResponse);
+//
+//        struct PlayerData { int pos; std::string name; int pts; int v; int d; };
+//        std::vector<PlayerData> ranking;
+//        int currentPos = 1;
+//
+//        while (res->next()) {
+//            ranking.push_back({ currentPos++, res->getString("userName"), res->getInt("points"), res->getInt("wins"), res->getInt("losses") });
+//        }
+//        delete res;
+//        delete stmt;
+//
+//        if (currentUser != "") {
+//            sql::PreparedStatement* pstmt = con->prepareStatement(
+//                "SELECT userName, points, wins, losses, "
+//                "(SELECT COUNT(*) + 1 FROM users WHERE points > u.points) AS myPos "
+//                "FROM users u WHERE userName = ?"
+//            );
+//            pstmt->setString(1, currentUser);
+//
+//            sql::ResultSet* resMe = pstmt->executeQuery();
+//            if (resMe->next()) {
+//                ranking.push_back({
+//                    resMe->getInt("myPos"),
+//                    resMe->getString("userName"),
+//                    resMe->getInt("points"),
+//                    resMe->getInt("wins"),
+//                    resMe->getInt("losses")
+//                    });
+//            }
+//            delete resMe;
+//            delete pstmt;
+//        }
+//
+//        response << static_cast<int>(ranking.size());
+//        for (const auto& p : ranking) {
+//            response << p.pos << p.name << p.pts << p.v << p.d;
+//        }
+//
+//        client->send(response);
+//        std::cout << "[SERVER] Ranking enviado correctamente." << std::endl;
+//
+//    }
+//    catch (sql::SQLException& e) {
+//        std::cout << "[BD] Error SQL enviando ranking: " << e.what() << std::endl;
+//    }
+//}
 
 void Server::Stop() {
     isRunning = false;
-    listener.close();
+    //listener.close();
     selector.clear();
     for (auto* client : clients) {
-        client->disconnect();
+        client->unbind();
         delete client;
     }
     clients.clear();

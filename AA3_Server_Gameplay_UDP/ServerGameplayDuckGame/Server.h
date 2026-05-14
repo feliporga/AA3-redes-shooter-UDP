@@ -87,7 +87,7 @@ private:
 
     void AcceptNewClient();
     void HandleClientPackets();
-    void HandleBuffer(char* buffer, std::size_t size, sf::IpAddress ip, unsigned short port);
+    void HandleBuffer(char* buffer, std::size_t size, std::optional<sf::IpAddress> ip, unsigned short port);
     void SendRankingToClient(sf::TcpSocket* client);
 
 public:
