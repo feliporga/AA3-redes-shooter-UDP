@@ -22,9 +22,8 @@ LoginScene::LoginScene() : Scene() {
 }
 
 void LoginScene::OnEnter() {
-
-	//INICIALIZACIÓN DE OBJETOS UI
-    titleText = new TextObject("3 EN RAYA ONLINE");
+    // INICIALIZACIÓN DE OBJETOS UI
+    titleText = new TextObject("DUCKGAME SHOOTER"); // ¡Actualizado al nuevo juego!
     titleText->GetTransform()->position = Vector2(winW / 2 - 190.0f, winH / 2 - 200);
     titleText->SetColor(sf::Color::Yellow);
     SPAWN.SpawnObject(titleText);
@@ -64,6 +63,21 @@ void LoginScene::OnExit() {
 void LoginScene::Update() {
     Scene::Update();
 
+    // MAGIA AÑADIDA: COMPROBAR RESPUESTAS DEL SERVIDOR
+    if (NM.loginSuccess) {
+        NM.loginSuccess = false; // Lo reseteamos para el futuro
+        std::cout << "[CLIENTE] Login aceptado! Entrando al menu principal..." << std::endl;
+
+        // Usamos tu macro SM y tu función SetNextScene real
+        SM.SetNextScene("MainMenu");
+        return;
+    }
+
+    if (NM.loginError) {
+        NM.loginError = false; // Lo reseteamos
+        std::cout << "[CLIENTE] Error: Usuario o contrasena incorrectos." << std::endl;
+    }
+
     // Mouse click edge detection
     static bool prevLeftClick = false;
     bool currentLeftClick = Input.GetLeftClick();
@@ -86,7 +100,7 @@ void LoginScene::Update() {
 
             if (user != "" && pass != "") {
                 NM.SendLogin(user, pass);
-                std::cout << "[CLIENTE] Login enviado";
+                std::cout << "[CLIENTE] Peticion de Login enviada..." << std::endl;
             }
             else {
                 std::cout << "[CLIENTE] Por favor, rellena usuario y contrasena." << std::endl;
@@ -103,6 +117,7 @@ void LoginScene::Update() {
 
             if (user != "" && pass != "") {
                 NM.SendRegister(user, pass);
+                std::cout << "[CLIENTE] Peticion de Registro enviada..." << std::endl;
             }
             else {
                 std::cout << "[CLIENTE] Por favor, rellena usuario y contrasena para registrarte." << std::endl;

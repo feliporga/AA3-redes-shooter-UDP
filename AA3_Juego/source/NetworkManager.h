@@ -51,7 +51,12 @@ public:
     bool newRankingAvailable = false;
     std::vector<PlayerRanking> lastRanking;
 
-    // --- CONEXIÓN TCP ---
+    // Variables para el Login
+    bool loginSuccess = false;
+    bool loginError = false;
+    bool gameStarted = false;
+
+    // CONEXIÓN TCP
     bool ConnectToServer(const std::string& ip, unsigned short port) {
         tcpSocket.setBlocking(true);
         sf::Socket::Status status = tcpSocket.connect(sf::IpAddress::resolve(ip).value(), port, sf::seconds(2.0f));
@@ -65,7 +70,7 @@ public:
         return false;
     }
 
-    // --- ENVÍO DE PAQUETES TCP ---
+    // ENVÍO DE PAQUETES TCP
     void SendLogin(const std::string& user, const std::string& pass) {
         savedUser = user; savedPass = pass;
         sf::Packet p;
@@ -97,7 +102,7 @@ public:
         tcpSocket.send(p);
     }
 
-    // --- BUCLE DE ESCUCHA TCP ---
+    // BUCLE DE ESCUCHA TCP
     void Listen() {
         sf::Packet packet;
         if (tcpSocket.receive(packet) == sf::Socket::Status::Done) {
@@ -117,12 +122,33 @@ public:
                         newRankingAvailable = true;
                     }
                 }
-                // (Aquí podrías capturar RoomSuccess o LoginSuccess si lo necesitas globalmente)
+                else if (type == PacketType::LoginSuccess) {
+                    loginSuccess = true;
+                }
+                else if (type == PacketType::LoginFailed) {
+                    loginError = true;
+                }
+                else if (type == PacketType::RegisterSuccess) {
+                    std::cout << "[CLIENTE] Registro completado. Ya puedes loguearte." << std::endl;
+                }
+                else if (type == PacketType::GameStart) {
+                    short pID;
+                    std::string udpIP;
+                    unsigned short udpPort;
+
+                    // Extraemos los datos exactos enviamos desde TCP
+                    packet >> pID >> udpIP >> udpPort;
+
+					myPlayerID = pID; // Guardamos si somos Mario o Luigi (1 o 2)
+                    gameStarted = true;
+
+                    std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << std::endl;
+                }
             }
         }
     }
 
-    // --- ENVÍO Y RECEPCIÓN UDP (GAMEPLAY) ---
+    // ENVÍO Y RECEPCIÓN UDP (GAMEPLAY)
     void SendUDPInput(short mask, unsigned int time) {
         if (!serverUdpIp.has_value()) return;
 

@@ -22,12 +22,10 @@ GameScene::~GameScene() {
 void GameScene::LoadPlayerAssets(short index, short playerID) {
     std::string character = (playerID == 1) ? "Mario" : "Luigi";
 
-    // Rutas de tus archivos
-    std::string pathIdle = "Assets/Idle" + character + ".png";
-    std::string pathWalk = "Assets/Walk" + character + ".png";
-    std::string pathJump = "Assets/Jump" + character + ".png";
+    std::string pathIdle = "resources/Idle" + character + ".png";
+    std::string pathWalk = "resources/Walk" + character + ".png";
+    std::string pathJump = "resources/Jump" + character + ".png";
 
-    // Cargamos en el RenderManager (como en tu ImageRenderer.cpp)
     RM->LoadTexture(pathIdle);
     RM->LoadTexture(pathWalk);
     RM->LoadTexture(pathJump);
@@ -39,7 +37,6 @@ void GameScene::LoadPlayerAssets(short index, short playerID) {
     // Creamos el sprite con la textura inicial (Idle)
     if (playerModels[index].texIdle) {
         playerModels[index].sprite = new sf::Sprite(*(playerModels[index].texIdle));
-        // Ajuste de origen (centro)
         playerModels[index].sprite->setOrigin({ 16.f, 16.f });
     }
 }
@@ -86,8 +83,8 @@ void GameScene::Update() {
             else m.sprite->setTexture(*m.texIdle);
 
             // Flip horizontal
-            if (s.velX < 0) m.sprite->setScale({ -1.0f, 1.0f });
-            else if (s.velX > 0) m.sprite->setScale({ 1.0f, 1.0f });
+            if (s.velX < 0) m.sprite->setScale({ 1.0f, 1.0f });
+            else if (s.velX > 0) m.sprite->setScale({ -1.0f, 1.0f });
         }
     }
 }
