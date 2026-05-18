@@ -62,7 +62,6 @@ void Server::AcceptNewClient() {
 }
 
 void Server::HandleClientPackets() {
-    // Bucle clásico con índice short para evitar 'auto'
     for (short i = 0; i < (short)clients.size(); ) {
         sf::TcpSocket* client = clients[i];
 
