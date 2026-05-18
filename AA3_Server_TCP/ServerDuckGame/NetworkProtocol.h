@@ -1,6 +1,10 @@
 #pragma once
 #include <cstdint>
 
+#define NORMAL_PACKET   0b00000000 
+#define CRITICAL_PACKET 0b00000001
+#define URGENT_PACKET   0b00000010
+
 // Tipo de paquete optimizado a short
 enum class PacketType : short {
     LoginRequest,
@@ -19,7 +23,8 @@ enum class PacketType : short {
     GameMove,
     UpdateBoard,
     ReportResult,
-    ResultAcknowledge
+    ResultAcknowledge,
+    Ack
 };
 
 // Bitmask para las teclas (2 bytes)
@@ -35,13 +40,21 @@ enum InputFlags : short {
 #pragma pack(push, 1) 
 // Paquete de Input (Cliente -> Servidor UDP)
 struct C2S_InputPacket {
+    uint8_t flags = NORMAL_PACKET;
+    unsigned int packetID = 0;
     short type = (short)PacketType::GameMove;
     short playerID;
     unsigned int timestamp;
     short inputMask;
 };
 
-// Estado de cada jugador
+// Paquete de Confirmación (Servidor -> Cliente UDP)
+struct S2C_AckPacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::Ack;
+    unsigned int ackedPacketID;
+};
+
 struct PlayerState {
     short id;
     short posX;
@@ -52,10 +65,10 @@ struct PlayerState {
     bool facingRight;
 };
 
-// Paquete de Estado (Servidor UDP -> Cliente)
 struct S2C_StatePacket {
+    uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::UpdateBoard;
     unsigned int timestamp;
-    PlayerState players[2]; // 1v1
+    PlayerState players[2];
 };
 #pragma pack(pop)

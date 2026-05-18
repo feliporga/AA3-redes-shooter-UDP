@@ -6,13 +6,16 @@
 #include <optional> 
 #include "NetworkProtocol.h"
 
-#define NM NetworkManager::Instance()
-
+// --- MACROS Y DEFINES ---
+#ifndef NETWORK_MACROS
+#define NETWORK_MACROS
 #define SERVER_IP "127.0.0.1"
 #define SERVER_TCP_PORT 60000
 #define SERVER_UDP_PORT 60001
+#define SERVER_TCP_IP SERVER_IP
+#define NM NetworkManager::Instance()
+#endif
 
-// Estructura para guardar el ranking cuando llegue
 struct PlayerRanking {
     short pos;
     std::string name;
@@ -28,9 +31,14 @@ private:
 
     std::string savedUser = "";
     std::string savedPass = "";
-
-    // SFML 3 exige optional para las IPs
     std::optional<sf::IpAddress> serverUdpIp;
+
+    struct PendingPacket {
+        C2S_InputPacket packet;
+        unsigned int lastSendTime;
+    };
+    std::vector<PendingPacket> unackedPackets;
+    unsigned int nextPacketID = 1;
 
     NetworkManager() {
         tcpSocket.setBlocking(false);
@@ -47,16 +55,17 @@ public:
     short myPlayerID = 0;
     bool isConnected = false;
 
-    // Variables para el Ranking
     bool newRankingAvailable = false;
     std::vector<PlayerRanking> lastRanking;
-
-    // Variables para el Login
     bool loginSuccess = false;
     bool loginError = false;
     bool gameStarted = false;
 
-    // CONEXIÓN TCP
+    S2C_StatePacket lastState;
+    bool newStateReceived = false;
+
+    // TCP
+
     bool ConnectToServer(const std::string& ip, unsigned short port) {
         tcpSocket.setBlocking(true);
         sf::Socket::Status status = tcpSocket.connect(sf::IpAddress::resolve(ip).value(), port, sf::seconds(2.0f));
@@ -70,7 +79,6 @@ public:
         return false;
     }
 
-    // ENVÍO DE PAQUETES TCP
     void SendLogin(const std::string& user, const std::string& pass) {
         savedUser = user; savedPass = pass;
         sf::Packet p;
@@ -102,7 +110,6 @@ public:
         tcpSocket.send(p);
     }
 
-    // BUCLE DE ESCUCHA TCP
     void Listen() {
         sf::Packet packet;
         if (tcpSocket.receive(packet) == sf::Socket::Status::Done) {
@@ -136,23 +143,24 @@ public:
                     std::string udpIP;
                     unsigned short udpPort;
 
-                    // Extraemos los datos exactos enviamos desde TCP
                     packet >> pID >> udpIP >> udpPort;
 
-					myPlayerID = pID; // Guardamos si somos Mario o Luigi (1 o 2)
+                    myPlayerID = pID;
                     gameStarted = true;
-
                     std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << std::endl;
                 }
             }
         }
     }
 
-    // ENVÍO Y RECEPCIÓN UDP (GAMEPLAY)
+    // UDP
+
     void SendUDPInput(short mask, unsigned int time) {
         if (!serverUdpIp.has_value()) return;
 
         C2S_InputPacket packet;
+        packet.flags = NORMAL_PACKET;
+        packet.packetID = 0;
         packet.playerID = myPlayerID;
         packet.timestamp = time;
         packet.inputMask = mask;
@@ -160,18 +168,61 @@ public:
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), SERVER_UDP_PORT);
     }
 
-    bool ReceiveUDPState(S2C_StatePacket& outState) {
+    void SendCriticalUDPInput(short mask, unsigned int time) {
+        if (!serverUdpIp.has_value()) return;
+
+        C2S_InputPacket packet;
+        packet.flags = CRITICAL_PACKET;
+        packet.packetID = nextPacketID++;
+        packet.playerID = myPlayerID;
+        packet.timestamp = time;
+        packet.inputMask = mask;
+
+        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), SERVER_UDP_PORT);
+        unackedPackets.push_back({ packet, time });
+    }
+
+    void ListenUDP() {
         char buffer[1024];
         std::size_t received;
         std::optional<sf::IpAddress> sender;
         unsigned short port;
 
-        if (udpSocket.receive(buffer, sizeof(buffer), received, sender, port) == sf::Socket::Status::Done) {
-            if (received == sizeof(S2C_StatePacket)) {
-                std::memcpy(&outState, buffer, sizeof(S2C_StatePacket));
-                return true;
+        while (udpSocket.receive(buffer, sizeof(buffer), received, sender, port) == sf::Socket::Status::Done) {
+            short type;
+            std::memcpy(&type, buffer + 1, sizeof(short)); // Saltamos el byte de flags
+
+            if (type == (short)PacketType::UpdateBoard) {
+                std::memcpy(&lastState, buffer, sizeof(S2C_StatePacket));
+                newStateReceived = true;
+            }
+            else if (type == (short)PacketType::Ack) {
+                S2C_AckPacket ack;
+                std::memcpy(&ack, buffer, sizeof(S2C_AckPacket));
+
+                for (auto it = unackedPackets.begin(); it != unackedPackets.end(); ) {
+                    if (it->packet.packetID == ack.ackedPacketID) {
+                        std::cout << "[CLIENTE] ACK recibido (ID: " << ack.ackedPacketID << "). Borrando de la cola." << std::endl;
+                        it = unackedPackets.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
+                }
             }
         }
-        return false;
+    }
+
+    void RetryUnackedPackets(unsigned int currentTime) {
+        if (!serverUdpIp.has_value()) return;
+
+        short numUnacked = (short)unackedPackets.size();
+        for (short i = 0; i < numUnacked; i++) {
+            if (currentTime - unackedPackets[i].lastSendTime > 100) {
+                udpSocket.send(&unackedPackets[i].packet, sizeof(C2S_InputPacket), serverUdpIp.value(), SERVER_UDP_PORT);
+                unackedPackets[i].lastSendTime = currentTime;
+                std::cout << "[CLIENTE] Reenviando paquete critico perdido (ID: " << unackedPackets[i].packet.packetID << ")" << std::endl;
+            }
+        }
     }
 };

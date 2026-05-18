@@ -4,13 +4,18 @@
 #include "Button.h"
 #include <SFML/Graphics.hpp>
 
-struct PlayerModel {
-    sf::Sprite* sprite = nullptr; // Estilo ImageRenderer
-    sf::Texture* texIdle = nullptr;
-    sf::Texture* texWalk = nullptr;
-    sf::Texture* texJump = nullptr;
+#include "Transform.h"
+#include "ImageRenderer.h"
+#include "AnimatedImageRenderer.h"
 
-    PlayerModel() : sprite(nullptr), texIdle(nullptr), texWalk(nullptr), texJump(nullptr) {}
+struct PlayerModel {
+    Transform transform;
+
+    ImageRenderer* rendIdle = nullptr;
+    AnimatedImageRenderer* rendWalk = nullptr;
+    ImageRenderer* rendJump = nullptr;
+
+    Renderer* activeRenderer = nullptr;
 };
 
 class GameScene : public Scene {
@@ -20,13 +25,11 @@ private:
     unsigned int lastServerTimestamp;
 
     TextObject* statusText;
-    Button* backButton;
-
     void LoadPlayerAssets(short index, short playerID);
 
 public:
     GameScene();
-    virtual ~GameScene(); // Destructor para limpiar punteros
+    virtual ~GameScene();
 
     void OnEnter() override;
     void OnExit() override;
