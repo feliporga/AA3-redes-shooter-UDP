@@ -22,7 +22,7 @@
     <ClCompile Include="source\RenderManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\TicTacToe.cpp">
+    <ClCompile Include="source\GameScene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -99,9 +99,6 @@
     <ClInclude Include="source\PlayerPiece.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
-    <ClInclude Include="source\TicTacToe.h">
-      <Filter>Header FIles</Filter>
-    </ClInclude>
     <ClInclude Include="source\TimeManager.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
@@ -115,6 +112,9 @@
       <Filter>Header FIles</Filter>
     </ClInclude>
     <ClInclude Include="source\Object.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\GameScene.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
   </ItemGroup>

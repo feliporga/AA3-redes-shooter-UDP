@@ -150,6 +150,15 @@ public:
             }
         }
         prevLeftClick = currentLeftClick;
+
+        // Comprobamos si el NetworkManager ha recibido la señal del servidor
+        if (NM.gameStarted) {
+            NM.gameStarted = false;
+
+            std::cout << "Cambiando a GameScene..." << std::endl;
+            SM.SetNextScene("GameScene"); // Usamos tu SceneManager para saltar al juego
+            return;
+        }
     }
 
     void Render() override

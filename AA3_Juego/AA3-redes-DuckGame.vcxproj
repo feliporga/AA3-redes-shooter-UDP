@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="source\GameScene.cpp" />
     <ClCompile Include="source\LoginScene.cpp" />
     <ClCompile Include="source\RankingScene.cpp" />
     <ClCompile Include="source\PlayerPiece.cpp" />
@@ -26,7 +27,6 @@
     <ClCompile Include="source\ImageRenderer.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\RenderManager.cpp" />
-    <ClCompile Include="source\TicTacToe.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="resources\player1.png" />
@@ -35,6 +35,7 @@
     <Image Include="resources\player4.png" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\GameScene.h" />
     <ClInclude Include="source\NetworkProtocol.h" />
     <ClInclude Include="source\NetworkManager.h" />
     <ClInclude Include="source\LoginScene.h" />
@@ -63,7 +64,6 @@
     <ClInclude Include="source\Transform.h" />
     <ClInclude Include="source\Vector2.h" />
     <ClInclude Include="source\YouWonScene.h" />
-    <ClInclude Include="source\TicTacToe.h" />
     <ClInclude Include="source\TextField.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -1,0 +1,38 @@
+#pragma once
+#include "Scene.h"
+#include "TextObject.h"
+#include "Button.h"
+#include <SFML/Graphics.hpp>
+
+#include "Transform.h"
+#include "ImageRenderer.h"
+#include "AnimatedImageRenderer.h"
+
+struct PlayerModel {
+    Transform transform;
+
+    ImageRenderer* rendIdle = nullptr;
+    AnimatedImageRenderer* rendWalk = nullptr;
+    ImageRenderer* rendJump = nullptr;
+
+    Renderer* activeRenderer = nullptr;
+};
+
+class GameScene : public Scene {
+private:
+    PlayerModel playerModels[2];
+    sf::Clock gameClock;
+    unsigned int lastServerTimestamp;
+
+    TextObject* statusText;
+    void LoadPlayerAssets(short index, short playerID);
+
+public:
+    GameScene();
+    virtual ~GameScene();
+
+    void OnEnter() override;
+    void OnExit() override;
+    void Update() override;
+    void Render() override;
+};

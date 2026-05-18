@@ -5,13 +5,13 @@
 #include "AudioManager.h"
 #include "LoginScene.h"
 #include "MainMenu.h"
-#include "TicTacToe.h"
+#include "GameScene.h"
 #include "YouWonScene.h"
 #include "RankingScene.h"
 #include "GameOverScene.h"
 
 void Game::Init() {
-    NM.ConnectToServer(SERVER_TCP_IP, SERVER_PORT);
+    NM.ConnectToServer(SERVER_IP, SERVER_TCP_PORT);
     RM->Init();
 
     AM.LoadSong("menuMusic");
@@ -20,7 +20,7 @@ void Game::Init() {
     SM.AddScene("MainMenu", new MainMenu());
     SM.AddScene("GameOver", new GameOverScene());
     SM.AddScene("YouWon", new YouWonScene());
-    SM.AddScene("TicTacToe", new TicTacToe());
+    SM.AddScene("GameScene", new GameScene());
     SM.AddScene("Ranking", new RankingScene());
 
     SM.InitFirstScene("Login");

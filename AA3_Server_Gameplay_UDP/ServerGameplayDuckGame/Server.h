@@ -1,94 +1,31 @@
 #pragma once
 #include <SFML/Network.hpp>
+#include <SFML/System.hpp>
 #include <iostream>
-#include <vector>
-#include <string>
+#include <optional>
+#include "NetworkProtocol.h" // Asegúrate de tener este archivo copiado en esta solución
 
-#include "mysql_connection.h"
-#include <cppconn/driver.h>
-#include <cppconn/exception.h>
-#include <cppconn/prepared_statement.h>
-#include <cppconn/resultset.h>
-
-#include "NetworkProtocol.h"
-
-#define INITIAL_TURN 1
-#define NUM_ROWS 6
-#define NUM_COLS 6
-#define EMPTY_BOARD 0
-#define PORT 56000
-#define HOST "127.0.0.1:3306"
-#define USER "root"
-#define PSSWRD ""
-#define DBNAME "tictactoe_db"
-#define MAX_POINTS 30
-#define MIN_POINTS 15
-#define INCREMENT 1
-#define OPPONENT_NUM 3
-#define BIND_PORT 55001
 class Server {
 private:
     unsigned short port;
     bool isRunning;
-    sf::UdpSocket socket;
-    sf::SocketSelector selector;
-    std::vector<sf::UdpSocket*> clients;
-    std::map<sf::UdpSocket*, std::string> loggedInUsers;
+    sf::UdpSocket udpSocket;
 
-    sql::Driver* driver;
-    sql::Connection* con;
-    std::string dbHost = HOST;
-    std::string dbUser = USER;
-    std::string dbPass = PSSWRD;
-    std::string dbName = DBNAME;
+    // Datos de la sala 1v1 (Arrays clásicos en lugar de vectores para optimizar RAM)
+    std::optional<sf::IpAddress> clientIPs[2]; // <--- CAMBIA ESTO
+    unsigned short clientPorts[2];
+    bool clientConnected[2];
 
-    char buffer[1024];
-    std::size_t receivedData;
-    std::optional <sf::IpAddress> senderIP;
-    unsigned short senderPort;
+    unsigned int lastTimestamps[2];
+    short playerInputs[2];
 
-    // Estructura para una sala de 3 en Raya
-    struct Room {
-        std::string name;
-        sf::UdpSocket* player1 = nullptr;
-        sf::UdpSocket* player2 = nullptr; 
-        std::vector<sf::UdpSocket*> players;
-        int board[NUM_ROWS][NUM_COLS]; // Tablero de 6x6 vacío
-        int currentTurn = INITIAL_TURN;   
-    };
+    S2C_StatePacket worldState;
+    sf::Clock serverClock;
 
-
-    //SISTEMA DE RESULTADOS
-    struct MatchResult {
-        std::vector<int> placements; // IDs de los jugadores
-    };
-
-    struct OngoingMatch {
-        std::string roomName;
-        std::vector<std::string> realNames; // ID -> Nombre BD
-        std::vector<MatchResult> reportedResults;
-    };
-
-    std::vector<OngoingMatch> activeMatches;
-
-    
-    void HandleMatchResult(sf::TcpSocket* client, const std::string& roomName, const std::vector<int>& placements);
-    void UpdatePlayerStats(const std::string& user, int pointsOffset, int winOffset, int lossOffset);
-
-    std::vector<Room> activeRooms;
-
-    void HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName);
-    void HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName);
-
-    bool ConnectDatabase();
-    void DisconnectDatabase();
-    bool CheckUserLogin(const std::string& user, const std::string& password);
-    bool RegisterUser(const std::string& user, const std::string& password);
-
-    void AcceptNewClient();
-    void HandleClientPackets();
-    void HandleBuffer(char* buffer, std::size_t size, std::optional<sf::IpAddress> ip, unsigned short port);
-    void SendRankingToClient(sf::TcpSocket* client);
+    // Métodos divididos correctamente
+    void ProcessPackets();
+    void UpdatePhysics();
+    void BroadcastState();
 
 public:
     Server(unsigned short port);
