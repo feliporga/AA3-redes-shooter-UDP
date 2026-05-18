@@ -129,16 +129,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="bcrypt.cpp" />
-    <ClCompile Include="blowfish.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Server.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="bcrypt.h" />
     <ClInclude Include="NetworkProtocol.h" />
-    <ClInclude Include="node_blf.h" />
-    <ClInclude Include="openbsd.h" />
     <ClInclude Include="Server.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
