@@ -74,6 +74,7 @@ struct BulletState {
     short posX;
     short posY;
     short velX; 
+    short ownerID;
 };
 
 struct S2C_StatePacket {

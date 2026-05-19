@@ -73,22 +73,23 @@ void Server::ProcessPackets() {
 
             if (in.inputMask & INPUT_SHOOT) {
                 short idx = in.playerID - 1;
-                // Buscamos una bala libre en la recámara
+                // Bbala disponible?
                 for (int i = 0; i < MAX_BULLETS; i++) {
                     if (!worldState.bullets[i].active) {
                         worldState.bullets[i].active = true;
-                        worldState.bullets[i].posY = worldState.players[idx].posY; // A la altura del pecho
+                        worldState.bullets[i].ownerID = in.playerID;
+                        worldState.bullets[i].posY = worldState.players[idx].posY; 
 
-                        // Si mira a la derecha, sale por la derecha y viaja en positivo
+                        // direccion bala
                         if (worldState.players[idx].facingRight) {
                             worldState.bullets[i].posX = worldState.players[idx].posX + 20;
-                            worldState.bullets[i].velX = 15; // Velocidad de la bala
+                            worldState.bullets[i].velX = 15; 
                         }
                         else {
                             worldState.bullets[i].posX = worldState.players[idx].posX - 20;
                             worldState.bullets[i].velX = -15;
                         }
-                        break; // Solo disparamos una por pulsación
+                        break; 
                     }
                 }
             }
@@ -136,11 +137,46 @@ void Server::UpdatePhysics() {
         if (worldState.bullets[i].active) {
             worldState.bullets[i].posX += worldState.bullets[i].velX;
 
-            // destruir bala fuera dela pantalla
+            // destruir bala fuera de la pantalla
             if (worldState.bullets[i].posX < -100 || worldState.bullets[i].posX > 2000) {
                 worldState.bullets[i].active = false;
             }
-        }
+            
+            else {
+                // Colisión AABB, la misma que en el cliente
+                short bX = worldState.bullets[i].posX;
+                short bY = worldState.bullets[i].posY;
+                short bW = 10; 
+                short bH = 10; 
+
+                for (short p = 0; p < 2; p++) {
+                    // comprueba que impacta al enemigo
+                    if (worldState.bullets[i].ownerID != worldState.players[p].id) {
+
+                        //pixeles aprox eneimgo
+                        short pX = worldState.players[p].posX;
+                        short pY = worldState.players[p].posY;
+                        short pW = 32;
+                        short pH = 32;
+
+                       
+                        bool collisionX = (pX < bX + bW) && (pX + pW > bX);
+                        bool collisionY = (pY < bY + bH) && (pY + pH > bY);
+
+                        if (collisionX && collisionY) {
+                           
+                            std::cout << "[UDP] IMPACTO! Bala de Jugador " << worldState.bullets[i].ownerID
+                                << " impacto a Jugador " << worldState.players[p].id << std::endl;
+
+                            worldState.bullets[i].active = false; // La bala desaparece
+
+                            
+                            break; 
+                        }
+                    }
+                }
+            } 
+        } 
     }
 }
 
