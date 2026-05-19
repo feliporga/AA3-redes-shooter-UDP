@@ -4,6 +4,7 @@
 #include "Button.h"
 #include <SFML/Graphics.hpp>
 
+#include "NetworkProtocol.h"
 #include "Transform.h"
 #include "ImageRenderer.h"
 #include "AnimatedImageRenderer.h"
@@ -26,6 +27,11 @@ private:
 
     TextObject* statusText;
     void LoadPlayerAssets(short index, short playerID);
+
+    //Bala
+    Transform bulletTransforms[MAX_BULLETS];
+    ImageRenderer* bulletRenderers[MAX_BULLETS];
+    bool bulletActive[MAX_BULLETS];
 
 public:
     GameScene();

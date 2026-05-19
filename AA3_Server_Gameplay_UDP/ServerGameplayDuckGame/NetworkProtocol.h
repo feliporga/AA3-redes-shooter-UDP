@@ -5,6 +5,9 @@
 #define CRITICAL_PACKET 0b00000001
 #define URGENT_PACKET   0b00000010
 
+
+#define MAX_BULLETS 20
+
 // Tipo de paquete optimizado a short
 enum class PacketType : short {
     LoginRequest,
@@ -65,10 +68,19 @@ struct PlayerState {
     bool facingRight;
 };
 
+
+struct BulletState {
+    bool active;
+    short posX;
+    short posY;
+    short velX; 
+};
+
 struct S2C_StatePacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::UpdateBoard;
     unsigned int timestamp;
     PlayerState players[2];
+    BulletState bullets[MAX_BULLETS];
 };
 #pragma pack(pop)

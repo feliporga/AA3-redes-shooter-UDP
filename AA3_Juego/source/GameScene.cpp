@@ -7,6 +7,12 @@
 GameScene::GameScene() : Scene() {
     statusText = nullptr;
     lastServerTimestamp = 0;
+
+
+    // Inicializar balas
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        bulletActive[i] = false;
+    }
 }
 
 GameScene::~GameScene() {
@@ -60,13 +66,23 @@ void GameScene::Update() {
     Scene::Update();
     unsigned int currentTime = gameClock.getElapsedTime().asMilliseconds();
 
-    // 1. INPUTS
+    // 1. INPUTS:
+
+    //MOVMIENTO
     short mask = INPUT_NONE;
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) mask |= INPUT_LEFT;
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) mask |= INPUT_RIGHT;
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) mask |= INPUT_JUMP; // Salto en el espacio
 
     NM.SendUDPInput(mask, currentTime);
+
+    // DISPARO
+    static bool prevShoot = false;
+    bool currentShoot = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::F);
+    if (currentShoot && !prevShoot) {
+        NM.SendCriticalUDPInput(INPUT_SHOOT, currentTime);
+    }
+    prevShoot = currentShoot;
 
     // 2. PROCESAR RED
     NM.RetryUnackedPackets(currentTime);
@@ -98,6 +114,11 @@ void GameScene::Update() {
                 else {
                     m.activeRenderer = m.rendIdle;
                 }
+
+                for (int i = 0; i < MAX_BULLETS; i++) {
+                    bulletActive[i] = NM.lastState.bullets[i].active;
+                    bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
+                }
             }
         }
         NM.newStateReceived = false;
@@ -118,6 +139,19 @@ void GameScene::Render() {
     for (short i = 0; i < 2; i++) {
         if (playerModels[i].activeRenderer) {
             playerModels[i].activeRenderer->Render();
+        }
+    }
+
+    // Render Balas
+    sf::RenderWindow* window = RM->GetWindow();
+    if (window) {
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            if (bulletActive[i]) {
+                sf::RectangleShape rect(sf::Vector2f(10.f, 10.f));
+                rect.setFillColor(sf::Color::Yellow);
+                rect.setPosition({ bulletTransforms[i].position.x, bulletTransforms[i].position.y });
+                window->draw(rect);
+            }
         }
     }
 }

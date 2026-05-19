@@ -17,6 +17,10 @@ Server::Server(unsigned short port) : port(port), isRunning(false) {
         worldState.players[i].onGround = false;
         worldState.players[i].facingRight = (i == 0);
     }
+
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        worldState.bullets[i].active = false;
+    }
 }
 
 Server::~Server() { Stop(); }
@@ -65,6 +69,29 @@ void Server::ProcessPackets() {
             S2C_AckPacket ack;
             ack.ackedPacketID = in.packetID;
             udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
+
+
+            if (in.inputMask & INPUT_SHOOT) {
+                short idx = in.playerID - 1;
+                // Buscamos una bala libre en la recámara
+                for (int i = 0; i < MAX_BULLETS; i++) {
+                    if (!worldState.bullets[i].active) {
+                        worldState.bullets[i].active = true;
+                        worldState.bullets[i].posY = worldState.players[idx].posY; // A la altura del pecho
+
+                        // Si mira a la derecha, sale por la derecha y viaja en positivo
+                        if (worldState.players[idx].facingRight) {
+                            worldState.bullets[i].posX = worldState.players[idx].posX + 20;
+                            worldState.bullets[i].velX = 15; // Velocidad de la bala
+                        }
+                        else {
+                            worldState.bullets[i].posX = worldState.players[idx].posX - 20;
+                            worldState.bullets[i].velX = -15;
+                        }
+                        break; // Solo disparamos una por pulsación
+                    }
+                }
+            }
         }
 
         if (in.type == (short)PacketType::GameMove) {
@@ -102,6 +129,18 @@ void Server::UpdatePhysics() {
         p.posY += p.velY;
 
         if (p.posY >= 500) { p.posY = 500; p.velY = 0; p.onGround = true; }
+    }
+
+    // Física de las balas
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        if (worldState.bullets[i].active) {
+            worldState.bullets[i].posX += worldState.bullets[i].velX;
+
+            // destruir bala fuera dela pantalla
+            if (worldState.bullets[i].posX < -100 || worldState.bullets[i].posX > 2000) {
+                worldState.bullets[i].active = false;
+            }
+        }
     }
 }
 
