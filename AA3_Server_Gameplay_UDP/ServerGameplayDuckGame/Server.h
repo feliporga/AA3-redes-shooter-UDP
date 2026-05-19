@@ -19,6 +19,7 @@ private:
     unsigned int lastTimestamps[2];
     short playerInputs[2];
 
+
     S2C_StatePacket worldState;
     sf::Clock serverClock;
 
@@ -33,4 +34,9 @@ public:
 
     void Run();
     void Stop();
+
+
+    void CheckCollisions();
+
+    void HandlePlayerDeath(short playerIndex, short killerID);
 };

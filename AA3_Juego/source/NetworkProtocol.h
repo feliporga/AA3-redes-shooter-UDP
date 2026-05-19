@@ -8,6 +8,21 @@
 
 #define MAX_BULLETS 20
 
+
+
+//stats plpayer 
+
+constexpr short INITIAL_LIVES = 3;
+constexpr short INITIAL_HP = 5;
+constexpr short BULLET_DAMAGE = 1;
+constexpr short RESPAWN_POS_X = 400;
+constexpr short RESPAWN_POS_Y = 100;
+constexpr short MAP_FLOOR_Y = 500;
+constexpr short PLAYER_HITBOX_W = 32;
+constexpr short PLAYER_HITBOX_H = 32;
+constexpr short BULLET_HITBOX_W = 10;
+constexpr short BULLET_HITBOX_H = 10;
+
 // Tipo de paquete optimizado a short
 enum class PacketType : short {
     LoginRequest,
@@ -66,6 +81,9 @@ struct PlayerState {
     short velY;
     bool onGround;
     bool facingRight;
+
+    short hp;
+    short lives;
 };
 
 
@@ -83,5 +101,7 @@ struct S2C_StatePacket {
     unsigned int timestamp;
     PlayerState players[2];
     BulletState bullets[MAX_BULLETS];
+    bool isGameOver = false;
+    short winnerID = 0;
 };
 #pragma pack(pop)

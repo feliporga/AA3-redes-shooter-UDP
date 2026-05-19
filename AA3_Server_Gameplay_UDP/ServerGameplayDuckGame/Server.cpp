@@ -16,8 +16,15 @@ Server::Server(unsigned short port) : port(port), isRunning(false) {
         worldState.players[i].velY = 0;
         worldState.players[i].onGround = false;
         worldState.players[i].facingRight = (i == 0);
+
+        worldState.players[i].hp = INITIAL_HP;      
+        worldState.players[i].lives = INITIAL_LIVES;
     }
 
+    worldState.isGameOver = false;
+    worldState.winnerID = 0;
+
+    //inicializador balas 
     for (int i = 0; i < MAX_BULLETS; i++) {
         worldState.bullets[i].active = false;
     }
@@ -115,6 +122,10 @@ void Server::ProcessPackets() {
 }
 
 void Server::UpdatePhysics() {
+
+    // Si la partida ya ha terminado, congelamos la física
+    if (worldState.isGameOver) return;
+
     for (short i = 0; i < 2; i++) {
         PlayerState& p = worldState.players[i];
         short mask = playerInputs[i];
@@ -133,51 +144,19 @@ void Server::UpdatePhysics() {
     }
 
     // Física de las balas
-    for (int i = 0; i < MAX_BULLETS; i++) {
+       for (short i = 0; i < MAX_BULLETS; i++) {
         if (worldState.bullets[i].active) {
             worldState.bullets[i].posX += worldState.bullets[i].velX;
 
-            // destruir bala fuera de la pantalla
+            // Destruir bala si sale de la pantalla
             if (worldState.bullets[i].posX < -100 || worldState.bullets[i].posX > 2000) {
                 worldState.bullets[i].active = false;
             }
-            
-            else {
-                // Colisión AABB, la misma que en el cliente
-                short bX = worldState.bullets[i].posX;
-                short bY = worldState.bullets[i].posY;
-                short bW = 10; 
-                short bH = 10; 
-
-                for (short p = 0; p < 2; p++) {
-                    // comprueba que impacta al enemigo
-                    if (worldState.bullets[i].ownerID != worldState.players[p].id) {
-
-                        //pixeles aprox eneimgo
-                        short pX = worldState.players[p].posX;
-                        short pY = worldState.players[p].posY;
-                        short pW = 32;
-                        short pH = 32;
-
-                       
-                        bool collisionX = (pX < bX + bW) && (pX + pW > bX);
-                        bool collisionY = (pY < bY + bH) && (pY + pH > bY);
-
-                        if (collisionX && collisionY) {
-                           
-                            std::cout << "[UDP] IMPACTO! Bala de Jugador " << worldState.bullets[i].ownerID
-                                << " impacto a Jugador " << worldState.players[p].id << std::endl;
-
-                            worldState.bullets[i].active = false; // La bala desaparece
-
-                            
-                            break; 
-                        }
-                    }
-                }
-            } 
-        } 
+        }
     }
+
+    
+    CheckCollisions();
 }
 
 void Server::BroadcastState() {
@@ -188,6 +167,70 @@ void Server::BroadcastState() {
         }
     }
 }
+
+
+
+
+void Server::CheckCollisions() {
+    for (short i = 0; i < MAX_BULLETS; i++) {
+        // 1. Solo procesamos la bala si está activa
+        if (worldState.bullets[i].active) {
+
+            short bX = worldState.bullets[i].posX;
+            short bY = worldState.bullets[i].posY;
+
+            for (short p = 0; p < 2; p++) {
+                // 2. Solo comprobamos el impacto si la bala NO es del jugador
+                if (worldState.bullets[i].ownerID != worldState.players[p].id) {
+
+                    short pX = worldState.players[p].posX;
+                    short pY = worldState.players[p].posY;
+
+                    //AABB
+                    bool collisionX = (pX < bX + BULLET_HITBOX_W) && (pX + PLAYER_HITBOX_W > bX);
+                    bool collisionY = (pY < bY + BULLET_HITBOX_H) && (pY + PLAYER_HITBOX_H > bY);
+
+                    if (collisionX && collisionY) {
+                        worldState.bullets[i].active = false; 
+                        worldState.players[p].hp -= BULLET_DAMAGE; // Restar daño
+
+                        std::cout << "[UDP] IMPACTO! Jugador " << worldState.players[p].id
+                            << " recibe dano. HP restante: " << worldState.players[p].hp << std::endl;
+
+                        // Comprobar muerte
+                        if (worldState.players[p].hp <= 0) {
+                            HandlePlayerDeath(p, worldState.bullets[i].ownerID);
+                        }
+                        break; 
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+void Server::HandlePlayerDeath(short playerIndex, short killerID) {
+    worldState.players[playerIndex].lives -= 1;
+
+    if (worldState.players[playerIndex].lives <= 0) {
+        // --- GAME OVER ---
+        worldState.isGameOver = true;
+        worldState.winnerID = killerID; // El ganador es el que dio el último tiro
+        std::cout << "[UDP] GAME OVER! Ganador: Jugador " << killerID << std::endl;
+    }
+    else {
+        // --- RESPAWN ---
+        worldState.players[playerIndex].hp = INITIAL_HP;
+        worldState.players[playerIndex].posX = RESPAWN_POS_X;
+        worldState.players[playerIndex].posY = RESPAWN_POS_Y;
+        worldState.players[playerIndex].velX = 0;
+        worldState.players[playerIndex].velY = 0;
+        std::cout << "[UDP] Jugador " << worldState.players[playerIndex].id
+            << " muere y respawnea. Vidas restantes: " << worldState.players[playerIndex].lives << std::endl;
+    }
+}
+
 
 void Server::Stop() {
     isRunning = false;
