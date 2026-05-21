@@ -7,6 +7,12 @@
 GameScene::GameScene() : Scene() {
     statusText = nullptr;
     lastServerTimestamp = 0;
+
+
+    // Inicializar balas
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        bulletActive[i] = false;
+    }
 }
 
 GameScene::~GameScene() {
@@ -60,14 +66,25 @@ void GameScene::Update() {
     Scene::Update();
     unsigned int currentTime = gameClock.getElapsedTime().asMilliseconds();
 
-    // 1. INPUTS
-    short mask = INPUT_NONE;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) mask |= INPUT_LEFT;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) mask |= INPUT_RIGHT;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) mask |= INPUT_JUMP; // Salto en el espacio
+    // 1. INPUTS:
 
-    NM.SendUDPInput(mask, currentTime);
+  //MOVIMIENTO
+    if (!NM.lastState.isGameOver) {
+        short mask = INPUT_NONE;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) mask |= INPUT_LEFT;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) mask |= INPUT_RIGHT;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) mask |= INPUT_JUMP; // Salto en el espacio
 
+        NM.SendUDPInput(mask, currentTime);
+
+        // DISPARO
+        static bool prevShoot = false;
+        bool currentShoot = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::F);
+        if (currentShoot && !prevShoot) {
+            NM.SendCriticalUDPInput(INPUT_SHOOT, currentTime);
+        }
+        prevShoot = currentShoot;
+    }
     // 2. PROCESAR RED
     NM.RetryUnackedPackets(currentTime);
     NM.ListenUDP();
@@ -98,6 +115,11 @@ void GameScene::Update() {
                 else {
                     m.activeRenderer = m.rendIdle;
                 }
+                               
+            }
+            for (int i = 0; i < MAX_BULLETS; i++) {
+                bulletActive[i] = NM.lastState.bullets[i].active;
+                bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
             }
         }
         NM.newStateReceived = false;
@@ -109,6 +131,28 @@ void GameScene::Update() {
             playerModels[i].activeRenderer->Update();
         }
     }
+
+    // hud de vidas y win/lose
+    if (NM.lastState.isGameOver) {
+        if (NM.lastState.winnerID == NM.myPlayerID) {
+            statusText->SetText("¡VICTORIA! Has ganado la partida.");
+            statusText->SetColor(sf::Color::Green);
+        }
+        else {
+            statusText->SetText("¡DERROTA! Te has quedado sin vidas.");
+            statusText->SetColor(sf::Color::Red);
+        }
+    }
+    else {
+        // Buscamos nuestra propia ID en el array para mostrar nuestros stats
+        short myIndex = (NM.lastState.players[0].id == NM.myPlayerID) ? 0 : 1;
+        short enemyIndex = (myIndex == 0) ? 1 : 0;
+
+        std::string hpInfo = "Mis Vidas: " + std::to_string(NM.lastState.players[myIndex].lives) +
+            " | Mi HP: " + std::to_string(NM.lastState.players[myIndex].hp) +
+            " --- HP Enemigo: " + std::to_string(NM.lastState.players[enemyIndex].hp);
+        statusText->SetText(hpInfo);
+    }
 }
 
 void GameScene::Render() {
@@ -118,6 +162,19 @@ void GameScene::Render() {
     for (short i = 0; i < 2; i++) {
         if (playerModels[i].activeRenderer) {
             playerModels[i].activeRenderer->Render();
+        }
+    }
+
+    // Render Balas
+    sf::RenderWindow* window = RM->GetWindow();
+    if (window) {
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            if (bulletActive[i]) {
+                sf::RectangleShape rect(sf::Vector2f(10.f, 10.f));
+                rect.setFillColor(sf::Color::Yellow);
+                rect.setPosition({ bulletTransforms[i].position.x, bulletTransforms[i].position.y });
+                window->draw(rect);
+            }
         }
     }
 }
