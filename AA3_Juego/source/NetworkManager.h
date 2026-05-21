@@ -225,4 +225,23 @@ public:
             }
         }
     }
+    //Matchmaking
+
+    void SendSearchCasual() {
+        sf::Packet p;
+        p << (short)PacketType::SearchCasualRequest;
+        tcpSocket.send(p);
+    }
+
+    void SendSearchCompetitive(short myElo) {
+        sf::Packet p;
+        p << (short)PacketType::SearchCompetitiveRequest << myElo;
+        tcpSocket.send(p);
+    }
+
+    void CancelSearch() {
+        sf::Packet p;
+        p << (short)PacketType::CancelSearchRequest;
+        tcpSocket.send(p);
+    }
 };

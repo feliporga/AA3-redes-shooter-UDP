@@ -41,6 +41,20 @@ private:
     };
     std::vector<Room> activeRooms;
 
+    //Queues
+    struct CompPlayer {
+        sf::TcpSocket* socket;
+        short elo;
+    };
+
+    std::vector<sf::TcpSocket*> casualQueue;
+    std::vector<CompPlayer> compQueue;
+
+    // Matchmaking core functions
+    void ProcessMatchmaking();
+    void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2);
+    void RemoveFromQueues(sf::TcpSocket* client);
+
     // Métodos de gestión interna
     bool ConnectDatabase();
     void DisconnectDatabase();

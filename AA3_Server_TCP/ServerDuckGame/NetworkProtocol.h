@@ -24,7 +24,10 @@ enum class PacketType : short {
     UpdateBoard,
     ReportResult,
     ResultAcknowledge,
-    Ack
+    Ack,
+    SearchCasualRequest,
+    SearchCompetitiveRequest,
+    CancelSearchRequest
 };
 
 // Bitmask para las teclas (2 bytes)
