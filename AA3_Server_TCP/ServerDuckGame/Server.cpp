@@ -27,16 +27,16 @@ void Server::Run() {
     if (!ConnectDatabase()) return;
 
     if (listener.listen(port) != sf::Socket::Status::Done) {
-        std::cout << "[TCP ERROR] No se pudo abrir el puerto " << port << std::endl;
+        std::cout << "[TCP ERROR] Could not bind listener to port " << port << std::endl;
         return;
     }
 
-    std::cout << "[SERVER TCP] Matchmaking activo en el puerto " << port << "..." << std::endl;
+    std::cout << "[SERVER TCP] Matchmaking and Launch server active on port " << port << "..." << std::endl;
     selector.add(listener);
     isRunning = true;
 
     while (isRunning) {
-        if (selector.wait()) {
+        if (selector.wait(sf::milliseconds(10))) {
             if (selector.isReady(listener)) {
                 AcceptNewClient();
             }
@@ -44,6 +44,7 @@ void Server::Run() {
                 HandleClientPackets();
             }
         }
+        ProcessMatchmaking();
     }
 }
 
@@ -117,6 +118,26 @@ void Server::HandleClientPackets() {
                     else if (type == PacketType::CancelSearchRequest) {
                         RemoveFromQueues(client);
                         std::cout << "[MATCHMAKING] Player canceled search." << std::endl;
+                    }
+                    else if (type == PacketType::ReportResult) {
+                        short winnerID;
+                        packet >> winnerID;
+
+                        std::string username = loggedInUsers[client];
+                        if (!username.empty()) {
+                            try {
+                                sql::PreparedStatement* pstmt = con->prepareStatement(
+                                    "UPDATE users SET points = points + 25, wins = wins + 1 WHERE userName = ?"
+                                );
+                                pstmt->setString(1, username);
+                                pstmt->executeUpdate();
+                                delete pstmt;
+                                std::cout << "[DATABASE] ELO classification updated for user: " << username << std::endl;
+                            }
+                            catch (sql::SQLException& e) {
+                                std::cout << "[DATABASE ERROR] Could not update ELO: " << e.what() << std::endl;
+                            }
+                        }
                     }
                 }
                 i++;
@@ -384,6 +405,10 @@ void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2) {
         if (i == 0) p1->send(startP);
         else p2->send(startP);
     }
+    sf::UdpSocket udpNotifier;
+    sf::Packet notifyPacket;
+    notifyPacket << (short)PacketType::MatchCreatedNotification;
+    udpNotifier.send(notifyPacket, sf::IpAddress::resolve(SERVER_IP).value(), SERVER_UDP_PORT);
 }
 
 void Server::RemoveFromQueues(sf::TcpSocket* client) {

@@ -64,6 +64,7 @@ public:
     S2C_StatePacket lastState;
     bool newStateReceived = false;
 
+    unsigned short dynamicUdpPort = 60001;
     // TCP
 
     bool ConnectToServer(const std::string& ip, unsigned short port) {
@@ -146,11 +147,19 @@ public:
                     packet >> pID >> udpIP >> udpPort;
 
                     myPlayerID = pID;
+                    dynamicUdpPort = udpPort;
+                    serverUdpIp = sf::IpAddress::resolve(udpIP);
+
                     gameStarted = true;
-                    std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << std::endl;
+                    std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << " en el puerto " << dynamicUdpPort << std::endl;
                 }
             }
         }
+    }
+    void SendReportResult(short winnerPlayerID) {
+        sf::Packet p;
+        p << (short)PacketType::ReportResult << winnerPlayerID;
+        tcpSocket.send(p);
     }
 
     // UDP
@@ -165,7 +174,7 @@ public:
         packet.timestamp = time;
         packet.inputMask = mask;
 
-        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), SERVER_UDP_PORT);
+        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
     }
 
     void SendCriticalUDPInput(short mask, unsigned int time) {

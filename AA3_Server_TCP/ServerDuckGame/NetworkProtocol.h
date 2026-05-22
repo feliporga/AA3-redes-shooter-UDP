@@ -19,6 +19,7 @@ enum class PacketType : short {
     JoinRoomRequest,
     RoomSuccess,
     RoomError,
+    MatchCreatedNotification,
     GameStart,
     GameMove,
     UpdateBoard,
