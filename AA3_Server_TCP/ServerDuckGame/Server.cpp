@@ -27,16 +27,16 @@ void Server::Run() {
     if (!ConnectDatabase()) return;
 
     if (listener.listen(port) != sf::Socket::Status::Done) {
-        std::cout << "[TCP ERROR] No se pudo abrir el puerto " << port << std::endl;
+        std::cout << "[TCP ERROR] Could not bind listener to port " << port << std::endl;
         return;
     }
 
-    std::cout << "[SERVER TCP] Matchmaking activo en el puerto " << port << "..." << std::endl;
+    std::cout << "[SERVER TCP] Matchmaking and Launch server active on port " << port << "..." << std::endl;
     selector.add(listener);
     isRunning = true;
 
     while (isRunning) {
-        if (selector.wait()) {
+        if (selector.wait(sf::milliseconds(10))) {
             if (selector.isReady(listener)) {
                 AcceptNewClient();
             }
@@ -44,6 +44,7 @@ void Server::Run() {
                 HandleClientPackets();
             }
         }
+        ProcessMatchmaking();
     }
 }
 
@@ -104,11 +105,46 @@ void Server::HandleClientPackets() {
                     else if (type == PacketType::RankingRequest) {
                         SendRankingToClient(client);
                     }
+                    else if (type == PacketType::SearchCasualRequest) {
+                        casualQueue.push_back(client);
+                        std::cout << "[MATCHMAKING] Player joined Casual queue." << std::endl;
+                    }
+                    else if (type == PacketType::SearchCompetitiveRequest) {
+                        short playerElo;
+                        packet >> playerElo;
+                        compQueue.push_back({ client, playerElo });
+                        std::cout << "[MATCHMAKING] Player joined Competitive queue. ELO: " << playerElo << std::endl;
+                    }
+                    else if (type == PacketType::CancelSearchRequest) {
+                        RemoveFromQueues(client);
+                        std::cout << "[MATCHMAKING] Player canceled search." << std::endl;
+                    }
+                    else if (type == PacketType::ReportResult) {
+                        short winnerID;
+                        packet >> winnerID;
+
+                        std::string username = loggedInUsers[client];
+                        if (!username.empty()) {
+                            try {
+                                sql::PreparedStatement* pstmt = con->prepareStatement(
+                                    "UPDATE users SET points = points + 25, wins = wins + 1 WHERE userName = ?"
+                                );
+                                pstmt->setString(1, username);
+                                pstmt->executeUpdate();
+                                delete pstmt;
+                                std::cout << "[DATABASE] ELO classification updated for user: " << username << std::endl;
+                            }
+                            catch (sql::SQLException& e) {
+                                std::cout << "[DATABASE ERROR] Could not update ELO: " << e.what() << std::endl;
+                            }
+                        }
+                    }
                 }
                 i++;
             }
             else if (status == sf::Socket::Status::Disconnected || status == sf::Socket::Status::Error) {
                 std::cout << "[TCP] Cliente desconectado." << std::endl;
+                RemoveFromQueues(client);                
                 selector.remove(*client);
                 loggedInUsers.erase(client);
                 delete client;
@@ -319,5 +355,71 @@ void Server::DisconnectDatabase() {
         delete con;
         con = nullptr;
         std::cout << "[BD] Conexion cerrada." << std::endl;
+    }
+}
+
+void Server::ProcessMatchmaking() {
+    // Match without filters
+    while (casualQueue.size() >= 2) {
+        sf::TcpSocket* p1 = casualQueue[0];
+        sf::TcpSocket* p2 = casualQueue[1];
+
+        // Remove from queue
+        casualQueue.erase(casualQueue.begin(), casualQueue.begin() + 2);
+
+        std::cout << "[MATCHMAKING] Casual match found!" << std::endl;
+        StartGameForPlayers(p1, p2);
+    }
+
+    if (compQueue.size() >= 2) {
+        for (short i = 0; i < (short)compQueue.size(); i++) {
+            for (short j = i + 1; j < (short)compQueue.size(); j++) {
+
+                // Check ELO
+                if (std::abs(compQueue[i].elo - compQueue[j].elo) <= 50) {
+                    sf::TcpSocket* p1 = compQueue[i].socket;
+                    sf::TcpSocket* p2 = compQueue[j].socket;
+
+                    compQueue.erase(compQueue.begin() + j);
+                    compQueue.erase(compQueue.begin() + i);
+
+                    std::cout << "[MATCHMAKING] Competitive match found!" << std::endl;
+                    StartGameForPlayers(p1, p2);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2) {
+    std::cout << "[MATCHMAKING] Handoff to UDP Game Server initializing..." << std::endl;
+
+    for (short i = 0; i < 2; i++) {
+        sf::Packet startP;
+        startP << (short)PacketType::GameStart;
+        startP << (short)(i + 1);
+        startP << std::string(SERVER_IP);
+        startP << (unsigned short)SERVER_UDP_PORT;
+
+        if (i == 0) p1->send(startP);
+        else p2->send(startP);
+    }
+    sf::UdpSocket udpNotifier;
+    sf::Packet notifyPacket;
+    notifyPacket << (short)PacketType::MatchCreatedNotification;
+    udpNotifier.send(notifyPacket, sf::IpAddress::resolve(SERVER_IP).value(), SERVER_UDP_PORT);
+}
+
+void Server::RemoveFromQueues(sf::TcpSocket* client) {
+    //Remove client from casual queue
+    for (auto it = casualQueue.begin(); it != casualQueue.end(); ) {
+        if (*it == client) it = casualQueue.erase(it);
+        else ++it;
+    }
+    //Remove client from competitive queue
+    for (auto it = compQueue.begin(); it != compQueue.end(); ) {
+        if (it->socket == client) it = compQueue.erase(it);
+        else ++it;
     }
 }

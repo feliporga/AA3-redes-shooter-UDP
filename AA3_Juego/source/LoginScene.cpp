@@ -63,18 +63,16 @@ void LoginScene::OnExit() {
 void LoginScene::Update() {
     Scene::Update();
 
-    // MAGIA AÑADIDA: COMPROBAR RESPUESTAS DEL SERVIDOR
     if (NM.loginSuccess) {
-        NM.loginSuccess = false; // Lo reseteamos para el futuro
+        NM.loginSuccess = false;
         std::cout << "[CLIENTE] Login aceptado! Entrando al menu principal..." << std::endl;
 
-        // Usamos tu macro SM y tu función SetNextScene real
-        SM.SetNextScene("MainMenu");
+        SM.SetNextScene("MatchmakingScene");
         return;
     }
 
     if (NM.loginError) {
-        NM.loginError = false; // Lo reseteamos
+        NM.loginError = false;
         std::cout << "[CLIENTE] Error: Usuario o contrasena incorrectos." << std::endl;
     }
 

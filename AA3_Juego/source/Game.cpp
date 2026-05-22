@@ -9,6 +9,7 @@
 #include "YouWonScene.h"
 #include "RankingScene.h"
 #include "GameOverScene.h"
+#include "MatchmakingScene.h"
 
 void Game::Init() {
     NM.ConnectToServer(SERVER_IP, SERVER_TCP_PORT);
@@ -22,6 +23,7 @@ void Game::Init() {
     SM.AddScene("YouWon", new YouWonScene());
     SM.AddScene("GameScene", new GameScene());
     SM.AddScene("Ranking", new RankingScene());
+    SM.AddScene("MatchmakingScene", new MatchmakingScene());
 
     SM.InitFirstScene("Login");
 }

@@ -25,6 +25,9 @@
     <ClCompile Include="source\GameScene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="source\MatchmakingScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\AABB.h">
@@ -115,6 +118,9 @@
       <Filter>Header FIles</Filter>
     </ClInclude>
     <ClInclude Include="source\GameScene.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MatchmakingScene.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
   </ItemGroup>

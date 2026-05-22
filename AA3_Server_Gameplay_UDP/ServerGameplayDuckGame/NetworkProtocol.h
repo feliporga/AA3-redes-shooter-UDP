@@ -37,12 +37,16 @@ enum class PacketType : short {
     JoinRoomRequest,
     RoomSuccess,
     RoomError,
+    MatchCreatedNotification,
     GameStart,
     GameMove,
     UpdateBoard,
     ReportResult,
     ResultAcknowledge,
-    Ack
+    Ack,
+    SearchCasualRequest,
+    SearchCompetitiveRequest,
+    CancelSearchRequest
 };
 
 // Bitmask para las teclas (2 bytes)

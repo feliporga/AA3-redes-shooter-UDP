@@ -85,36 +85,47 @@ void Server::ProcessPackets() {
                     if (!worldState.bullets[i].active) {
                         worldState.bullets[i].active = true;
                         worldState.bullets[i].ownerID = in.playerID;
-                        worldState.bullets[i].posY = worldState.players[idx].posY; 
+                        worldState.bullets[i].posY = worldState.players[idx].posY;
 
                         // direccion bala
                         if (worldState.players[idx].facingRight) {
                             worldState.bullets[i].posX = worldState.players[idx].posX + 20;
-                            worldState.bullets[i].velX = 15; 
+                            worldState.bullets[i].velX = 15;
                         }
                         else {
                             worldState.bullets[i].posX = worldState.players[idx].posX - 20;
                             worldState.bullets[i].velX = -15;
                         }
-                        break; 
+                        break;
                     }
                 }
             }
         }
 
-        if (in.type == (short)PacketType::GameMove) {
-            short idx = in.playerID - 1;
-            if (idx >= 0 && idx < 2) {
-                if (!clientConnected[idx]) {
-                    clientIPs[idx] = sender;
-                    clientPorts[idx] = senderPort;
-                    clientConnected[idx] = true;
-                    std::cout << "[UDP] Jugador " << in.playerID << " enlazado desde " << sender->toString() << ":" << senderPort << std::endl;
-                }
+        if (in.type == (short)PacketType::MatchCreatedNotification) {
+            std::cout << "[UDP SERVER] Notificacion del Matchmaking recibida. Preparando sala..." << std::endl;
+            for (short i = 0; i < 2; i++) {
+                clientConnected[i] = false;
+                worldState.players[i].posX = 100 + (i * 400);
+                worldState.players[i].posY = 300;
+            }
+        }
+        else if (in.type == (short)PacketType::GameMove) {
 
-                if (in.timestamp >= lastTimestamps[idx]) {
-                    lastTimestamps[idx] = in.timestamp;
-                    playerInputs[idx] = in.inputMask;
+            if (in.type == (short)PacketType::GameMove) {
+                short idx = in.playerID - 1;
+                if (idx >= 0 && idx < 2) {
+                    if (!clientConnected[idx]) {
+                        clientIPs[idx] = sender;
+                        clientPorts[idx] = senderPort;
+                        clientConnected[idx] = true;
+                        std::cout << "[UDP] Jugador " << in.playerID << " enlazado desde " << sender->toString() << ":" << senderPort << std::endl;
+                    }
+
+                    if (in.timestamp >= lastTimestamps[idx]) {
+                        lastTimestamps[idx] = in.timestamp;
+                        playerInputs[idx] = in.inputMask;
+                    }
                 }
             }
         }
