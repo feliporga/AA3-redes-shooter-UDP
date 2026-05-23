@@ -66,46 +66,76 @@ void GameScene::Update() {
     Scene::Update();
     unsigned int currentTime = gameClock.getElapsedTime().asMilliseconds();
 
-    // 1. INPUTS:
+    // INPUTS:
 
-  //MOVIMIENTO
     if (!NM.lastState.isGameOver) {
+        // MOVEMENT
         short mask = INPUT_NONE;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) mask |= INPUT_LEFT;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) mask |= INPUT_RIGHT;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) mask |= INPUT_JUMP; // Salto en el espacio
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::T)) mask |= INPUT_TAUNT; // Taunt (T)
+
+        // JUMP
+        static bool prevJump = false;
+        static bool prevOnGround = true;
+
+        bool currentJump = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space);
+        short myIndex = (NM.lastState.players[0].id == NM.myPlayerID) ? 0 : 1;
+        bool currentOnGround = NM.lastState.players[myIndex].onGround;
+
+        if (currentJump) {
+            mask |= INPUT_JUMP;
+			// Reproducimos el sonido de salto solo en el frame en que se detecta el salto o cuando aterrizamos después de un salto
+            if ((!prevJump && currentOnGround) || (prevJump && !prevOnGround && currentOnGround)) {
+                AM.PlayClip("marioJump", 0);
+            }
+        }
+
+        prevJump = currentJump;
+        prevOnGround = currentOnGround;
 
         NM.SendUDPInput(mask, currentTime);
 
-        // DISPARO
+		// SHOUT (F)
         static bool prevShoot = false;
         bool currentShoot = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::F);
         if (currentShoot && !prevShoot) {
             NM.SendCriticalUDPInput(INPUT_SHOOT, currentTime);
+            AM.PlayClip("SuperMarioBrosFireball", 0);
         }
         prevShoot = currentShoot;
     }
-    // 2. PROCESAR RED
+    // PROCESAR RED
     NM.RetryUnackedPackets(currentTime);
     NM.ListenUDP();
 
-    // 3. ACTUALIZAR TRANSFORMS CON DATOS DEL SERVIDOR
+    // ACTUALIZAR TRANSFORMS CON DATOS DEL SERVIDOR
     if (NM.newStateReceived) {
         if (NM.lastState.timestamp >= lastServerTimestamp) {
             lastServerTimestamp = NM.lastState.timestamp;
+
+            // Taunt
+            static bool prevTaunting[2] = { false, false };
 
             for (short i = 0; i < 2; i++) {
                 PlayerState& s = NM.lastState.players[i];
                 PlayerModel& m = playerModels[i];
 
-                // Actualizamos el Transform base
+				// reproducimos el sonido de taunt solo en el frame en que se activa
+                if (s.isTaunting && !prevTaunting[i]) {
+                    std::cout << "[AUDIO] Jugador " << s.id << " hace la burla!" << std::endl;
+                    AM.PlayClip("mariopapipo", 0);
+                }
+                prevTaunting[i] = s.isTaunting;
+
+				// refresh del transform con los datos del servidor
                 m.transform.position = Vector2((float)s.posX, (float)s.posY);
 
-                // Flip arreglado (moonwalk) ajustando el scale de tu Transform
+				// Flip horizontalmente el sprite según la dirección del movimiento (velX)
                 if (s.velX < 0) m.transform.scale = Vector2(1.0f, 1.0f);
                 else if (s.velX > 0) m.transform.scale = Vector2(-1.0f, 1.0f);
 
-                // Seleccionamos qué Renderer usar
+				// change renderer según estado (jump, walk, idle)
                 if (!s.onGround) {
                     m.activeRenderer = m.rendJump;
                 }
@@ -125,7 +155,6 @@ void GameScene::Update() {
         NM.newStateReceived = false;
     }
 
-    // 4. ACTUALIZAR RENDERERS (Para que tu AnimatedImageRenderer cambie los frames con el tiempo)
     for (short i = 0; i < 2; i++) {
         if (playerModels[i].activeRenderer) {
             playerModels[i].activeRenderer->Update();
@@ -144,7 +173,7 @@ void GameScene::Update() {
         }
     }
     else {
-        // Buscamos nuestra propia ID en el array para mostrar nuestros stats
+		// Mostramos HP y Vidas en el HUD (de tu ID)
         short myIndex = (NM.lastState.players[0].id == NM.myPlayerID) ? 0 : 1;
         short enemyIndex = (myIndex == 0) ? 1 : 0;
 
@@ -158,14 +187,13 @@ void GameScene::Update() {
 void GameScene::Render() {
     Scene::Render();
 
-    // Llamamos al Render de tu motor
     for (short i = 0; i < 2; i++) {
         if (playerModels[i].activeRenderer) {
             playerModels[i].activeRenderer->Render();
         }
     }
 
-    // Render Balas
+	// bullet rendering
     sf::RenderWindow* window = RM->GetWindow();
     if (window) {
         for (int i = 0; i < MAX_BULLETS; i++) {

@@ -21,7 +21,7 @@
   <ItemGroup>
     <ClCompile Include="source\GameScene.cpp" />
     <ClCompile Include="source\LoginScene.cpp" />
-    <ClCompile Include="source\MatchmakingScene.cpp" />
+    <ClCompile Include="source\MainMenu.cpp" />
     <ClCompile Include="source\RankingScene.cpp" />
     <ClCompile Include="source\PlayerPiece.cpp" />
     <ClCompile Include="source\Game.cpp" />
@@ -37,7 +37,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\GameScene.h" />
-    <ClInclude Include="source\MatchmakingScene.h" />
+    <ClInclude Include="source\MainMenu.h" />
     <ClInclude Include="source\NetworkProtocol.h" />
     <ClInclude Include="source\NetworkManager.h" />
     <ClInclude Include="source\LoginScene.h" />
@@ -52,7 +52,6 @@
     <ClInclude Include="source\ImageObject.h" />
     <ClInclude Include="source\ImageRenderer.h" />
     <ClInclude Include="source\InputManager.h" />
-    <ClInclude Include="source\MainMenu.h" />
     <ClInclude Include="source\Object.h" />
     <ClInclude Include="source\Renderer.h" />
     <ClInclude Include="source\RenderManager.h" />

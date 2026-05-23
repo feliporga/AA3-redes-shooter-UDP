@@ -67,7 +67,7 @@ void LoginScene::Update() {
         NM.loginSuccess = false;
         std::cout << "[CLIENTE] Login aceptado! Entrando al menu principal..." << std::endl;
 
-        SM.SetNextScene("MatchmakingScene");
+        SM.SetNextScene("MainMenu");
         return;
     }
 

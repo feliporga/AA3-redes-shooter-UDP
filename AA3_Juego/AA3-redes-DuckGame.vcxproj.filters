@@ -25,7 +25,7 @@
     <ClCompile Include="source\GameScene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\MatchmakingScene.cpp">
+    <ClCompile Include="source\MainMenu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -58,9 +58,6 @@
       <Filter>Header FIles</Filter>
     </ClInclude>
     <ClInclude Include="source\LoginScene.h">
-      <Filter>Header FIles</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MainMenu.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
     <ClInclude Include="source\NetworkManager.h">
@@ -120,7 +117,7 @@
     <ClInclude Include="source\GameScene.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
-    <ClInclude Include="source\MatchmakingScene.h">
+    <ClInclude Include="source\MainMenu.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
   </ItemGroup>

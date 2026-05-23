@@ -15,8 +15,8 @@
 constexpr short INITIAL_LIVES = 3;
 constexpr short INITIAL_HP = 5;
 constexpr short BULLET_DAMAGE = 1;
-constexpr short RESPAWN_POS_X = 400; 
-constexpr short RESPAWN_POS_Y = 100; 
+constexpr short RESPAWN_POS_X = 400;
+constexpr short RESPAWN_POS_Y = 100;
 constexpr short MAP_FLOOR_Y = 500;
 constexpr short PLAYER_HITBOX_W = 32;
 constexpr short PLAYER_HITBOX_H = 32;
@@ -86,6 +86,8 @@ struct PlayerState {
     bool onGround;
     bool facingRight;
 
+    bool isTaunting;
+
     short hp;
     short lives;
 };
@@ -95,7 +97,7 @@ struct BulletState {
     bool active;
     short posX;
     short posY;
-    short velX; 
+    short velX;
     short ownerID;
 };
 

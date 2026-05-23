@@ -4,18 +4,25 @@
 #include "SceneManager.h"
 #include "AudioManager.h"
 #include "LoginScene.h"
-#include "MainMenu.h"
 #include "GameScene.h"
 #include "YouWonScene.h"
 #include "RankingScene.h"
 #include "GameOverScene.h"
-#include "MatchmakingScene.h"
+#include "MainMenu.h"
 
 void Game::Init() {
     NM.ConnectToServer(SERVER_IP, SERVER_TCP_PORT);
     RM->Init();
 
     AM.LoadSong("menuMusic");
+	AM.LoadClip("SuperMarioBrosFireball");
+	AM.LoadClip("marioDamage");
+	AM.LoadClip("marioWin");
+	AM.LoadClip("marioDieGameOver");
+	AM.LoadClip("marioJump");
+	AM.LoadClip("mariopapipo");
+	AM.LoadClip("helicopter");
+
 
     SM.AddScene("Login", new LoginScene());
     SM.AddScene("MainMenu", new MainMenu());
@@ -23,7 +30,6 @@ void Game::Init() {
     SM.AddScene("YouWon", new YouWonScene());
     SM.AddScene("GameScene", new GameScene());
     SM.AddScene("Ranking", new RankingScene());
-    SM.AddScene("MatchmakingScene", new MatchmakingScene());
 
     SM.InitFirstScene("Login");
 }

@@ -17,6 +17,8 @@ Server::Server(unsigned short port) : port(port), isRunning(false) {
         worldState.players[i].onGround = false;
         worldState.players[i].facingRight = (i == 0);
 
+        worldState.players[i].isTaunting = false;
+
         worldState.players[i].hp = INITIAL_HP;      
         worldState.players[i].lives = INITIAL_LIVES;
     }
@@ -140,6 +142,8 @@ void Server::UpdatePhysics() {
     for (short i = 0; i < 2; i++) {
         PlayerState& p = worldState.players[i];
         short mask = playerInputs[i];
+
+        p.isTaunting = (mask & INPUT_TAUNT) != 0;
 
         p.velY += 1; // Gravedad
         p.velX = 0;

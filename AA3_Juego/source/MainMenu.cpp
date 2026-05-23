@@ -1,4 +1,4 @@
-#include "MatchmakingScene.h"
+#include "MainMenu.h"
 #include "SceneManager.h"
 #include "RenderManager.h"
 #include "Spawner.h"
@@ -6,7 +6,7 @@
 #include "InputManager.h"
 #include <iostream>
 
-MatchmakingScene::MatchmakingScene() : Scene() {
+MainMenu::MainMenu() : Scene() {
     winW = (float)RM->WINDOW_WIDTH;
     winH = (float)RM->WINDOW_HEIGHT;
     titleText = nullptr; statusText = nullptr; btnCasual = nullptr; btnCompetitive = nullptr;
@@ -14,7 +14,10 @@ MatchmakingScene::MatchmakingScene() : Scene() {
     isSearching = false;
 }
 
-void MatchmakingScene::OnEnter() {
+void MainMenu::OnEnter() {
+	AM.PlaySong("menuMusic");
+    std::cout << "[CLIENTE] Playing Menu Music" << std::endl;
+
     isSearching = false;
 
     titleText = new TextObject("MATCHMAKING MULTIPLAYER");
@@ -51,7 +54,7 @@ void MatchmakingScene::OnEnter() {
     SPAWN.SpawnObject(txtCancel);
 }
 
-void MatchmakingScene::Update() {
+void MainMenu::Update() {
     Scene::Update();
 
     if (NM.gameStarted) {
@@ -94,5 +97,8 @@ void MatchmakingScene::Update() {
     prevLeftClick = currentLeftClick;
 }
 
-void MatchmakingScene::OnExit() { Scene::OnExit(); }
-void MatchmakingScene::Render() { Scene::Render(); }
+void MainMenu::OnExit() {
+	AM.StopAudio();
+    Scene::OnExit(); 
+}
+void MainMenu::Render() { Scene::Render(); }

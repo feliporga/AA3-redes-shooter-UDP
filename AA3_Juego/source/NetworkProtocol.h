@@ -86,6 +86,8 @@ struct PlayerState {
     bool onGround;
     bool facingRight;
 
+    bool isTaunting;
+
     short hp;
     short lives;
 };

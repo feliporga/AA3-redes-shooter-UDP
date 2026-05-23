@@ -64,7 +64,7 @@ public:
         if (_songs.find(name) != _songs.end()) return;
 
         sf::Music* loadedMusic = new sf::Music();
-        if (!loadedMusic->openFromFile("resources/audio/music/" + name + ".mp3")) {
+        if (!loadedMusic->openFromFile("resources/audio/music/" + name + ".wav")) {
             std::cerr << "Error cargando Musica: " << name << std::endl;
             delete loadedMusic;
             return;
