@@ -24,6 +24,8 @@ struct PlayerRanking {
     short d;
 };
 
+
+
 class NetworkManager {
 private:
     sf::TcpSocket tcpSocket;
@@ -47,6 +49,8 @@ private:
     }
 
 public:
+    std::string GetSavedUser() const { return savedUser; }
+
     static NetworkManager& Instance() {
         static NetworkManager instance;
         return instance;

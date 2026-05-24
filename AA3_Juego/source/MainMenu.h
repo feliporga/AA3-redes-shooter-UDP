@@ -35,6 +35,7 @@ private:
 public:
     static bool isMusicMuted;
     static bool isSfxMuted;
+    static bool isMenuMusicPlaying;
 
     MainMenu();
     virtual ~MainMenu() = default;

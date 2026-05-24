@@ -10,7 +10,7 @@
 
 
 
-//stats plpayer 
+//stats player 
 
 constexpr short INITIAL_LIVES = 3;
 constexpr short INITIAL_HP = 5;
