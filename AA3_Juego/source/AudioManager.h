@@ -18,8 +18,8 @@ private:
     bool _muted = false;
 
     // volume
-    float _musicVolume = 10.0f;
-    float _sfxVolume = 10.0f;
+    float _musicVolume = 100.0f;
+    float _sfxVolume = 100.0f;
 
     std::string _currentSongName = "";
 

@@ -152,7 +152,8 @@ public:
 
                     myPlayerID = pID;
                     dynamicUdpPort = udpPort;
-                    serverUdpIp = sf::IpAddress::resolve(udpIP);
+                    //serverUdpIp = sf::IpAddress::resolve(udpIP);
+                    serverUdpIp = tcpSocket.getRemoteAddress();
 
                     gameStarted = true;
                     std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << " en el puerto " << dynamicUdpPort << std::endl;
