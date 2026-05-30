@@ -144,7 +144,7 @@ void Server::HandleClientPackets() {
             }
             else if (status == sf::Socket::Status::Disconnected || status == sf::Socket::Status::Error) {
                 std::cout << "[TCP] Cliente desconectado." << std::endl;
-                RemoveFromQueues(client);                
+                RemoveFromQueues(client);
                 selector.remove(*client);
                 loggedInUsers.erase(client);
                 delete client;
@@ -170,18 +170,13 @@ void Server::HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName) 
                 // SALA LLENA (1v1) -> Handoff a UDP
                 if (activeRooms[i].players.size() == 2) {
                     std::cout << "[MATCH] Partida lista. Enviando al servidor UDP..." << std::endl;
-                    for (short j = 0; j < 2; j++) {
-                        sf::Packet startP;
-                        startP << (short)PacketType::GameStart;
-                        startP << (short)(j + 1); // PlayerID (1 o 2)
 
-                        // USAMOS TU IP MAESTRA
-                        startP << std::string(SERVER_IP);
-                        startP << (unsigned short)SERVER_UDP_PORT;
+                    sf::TcpSocket* p1 = activeRooms[i].players[0];
+                    sf::TcpSocket* p2 = activeRooms[i].players[1];
 
-                        activeRooms[i].players[j]->send(startP);
-                    }
-                    activeRooms[i].players.clear();
+                    StartGameForPlayers(p1, p2);
+
+                    activeRooms.erase(activeRooms.begin() + i);
                 }
                 return;
             }
@@ -393,22 +388,21 @@ void Server::ProcessMatchmaking() {
 }
 
 void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2) {
-    std::cout << "[MATCHMAKING] Handoff to UDP Game Server initializing..." << std::endl;
+    unsigned int matchID = nextMatchID++;
+
+    std::cout << "[MATCHMAKING] Handoff to UDP Game Server initializing... MatchID: " << matchID << std::endl;
 
     for (short i = 0; i < 2; i++) {
         sf::Packet startP;
         startP << (short)PacketType::GameStart;
         startP << (short)(i + 1);
+        startP << matchID;
         startP << std::string(SERVER_IP);
         startP << (unsigned short)SERVER_UDP_PORT;
 
         if (i == 0) p1->send(startP);
         else p2->send(startP);
     }
-    sf::UdpSocket udpNotifier;
-    sf::Packet notifyPacket;
-    notifyPacket << (short)PacketType::MatchCreatedNotification;
-    udpNotifier.send(notifyPacket, sf::IpAddress::resolve(SERVER_IP).value(), SERVER_UDP_PORT);
 }
 
 void Server::RemoveFromQueues(sf::TcpSocket* client) {

@@ -30,6 +30,8 @@ private:
     std::vector<sf::TcpSocket*> clients;
     std::map<sf::TcpSocket*, std::string> loggedInUsers;
 
+    unsigned int nextMatchID = 1;
+
     // Conexión MySQL
     sql::Driver* driver;
     sql::Connection* con;

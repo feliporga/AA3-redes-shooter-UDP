@@ -68,6 +68,7 @@ struct C2S_InputPacket {
     short playerID;
     unsigned int timestamp;
     short inputMask;
+    unsigned int matchID = 0;
 };
 
 // Paquete de Confirmación (Servidor -> Cliente UDP)
@@ -109,5 +110,6 @@ struct S2C_StatePacket {
     BulletState bullets[MAX_BULLETS];
     bool isGameOver = false;
     short winnerID = 0;
+    unsigned int matchID = 0;
 };
 #pragma pack(pop)

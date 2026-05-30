@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <optional> 
+#include <cstring>
 #include "NetworkProtocol.h"
 
 // --- MACROS Y DEFINES ---
@@ -57,6 +58,7 @@ public:
     }
 
     short myPlayerID = 0;
+    unsigned int currentMatchID = 0;
     bool isConnected = false;
 
     bool newRankingAvailable = false;
@@ -145,15 +147,22 @@ public:
                 }
                 else if (type == PacketType::GameStart) {
                     short pID;
+                    unsigned int matchID;
                     std::string udpIP;
                     unsigned short udpPort;
 
-                    packet >> pID >> udpIP >> udpPort;
+                    packet >> pID >> matchID >> udpIP >> udpPort;
 
                     myPlayerID = pID;
+                    currentMatchID = matchID;
                     dynamicUdpPort = udpPort;
                     //serverUdpIp = sf::IpAddress::resolve(udpIP);
                     serverUdpIp = tcpSocket.getRemoteAddress();
+
+                    lastState = S2C_StatePacket{};
+                    newStateReceived = false;
+                    unackedPackets.clear();
+                    nextPacketID = 1;
 
                     gameStarted = true;
                     std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << " en el puerto " << dynamicUdpPort << std::endl;
@@ -178,6 +187,7 @@ public:
         packet.playerID = myPlayerID;
         packet.timestamp = time;
         packet.inputMask = mask;
+        packet.matchID = currentMatchID;
 
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
     }
@@ -191,8 +201,9 @@ public:
         packet.playerID = myPlayerID;
         packet.timestamp = time;
         packet.inputMask = mask;
+        packet.matchID = currentMatchID;
 
-        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), SERVER_UDP_PORT);
+        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
         unackedPackets.push_back({ packet, time });
     }
 
@@ -207,7 +218,14 @@ public:
             std::memcpy(&type, buffer + 1, sizeof(short)); // Saltamos el byte de flags
 
             if (type == (short)PacketType::UpdateBoard) {
-                std::memcpy(&lastState, buffer, sizeof(S2C_StatePacket));
+                if (received < sizeof(S2C_StatePacket)) continue;
+
+                S2C_StatePacket receivedState;
+                std::memcpy(&receivedState, buffer, sizeof(S2C_StatePacket));
+
+                if (receivedState.matchID != currentMatchID) continue;
+
+                lastState = receivedState;
                 newStateReceived = true;
             }
             else if (type == (short)PacketType::Ack) {
@@ -233,7 +251,7 @@ public:
         short numUnacked = (short)unackedPackets.size();
         for (short i = 0; i < numUnacked; i++) {
             if (currentTime - unackedPackets[i].lastSendTime > 100) {
-                udpSocket.send(&unackedPackets[i].packet, sizeof(C2S_InputPacket), serverUdpIp.value(), SERVER_UDP_PORT);
+                udpSocket.send(&unackedPackets[i].packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
                 unackedPackets[i].lastSendTime = currentTime;
                 std::cout << "[CLIENTE] Reenviando paquete critico perdido (ID: " << unackedPackets[i].packet.packetID << ")" << std::endl;
             }

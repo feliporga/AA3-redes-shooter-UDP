@@ -3,30 +3,38 @@
 #include <SFML/System.hpp>
 #include <iostream>
 #include <optional>
+#include <map>
 #include "NetworkProtocol.h" // Asegúrate de tener este archivo copiado en esta solución
 
 class Server {
 private:
+    struct MatchData {
+        // Datos de la sala 1v1 (Arrays clásicos en lugar de vectores para optimizar RAM)
+        std::optional<sf::IpAddress> clientIPs[2]; // <--- CAMBIA ESTO
+        unsigned short clientPorts[2];
+        bool clientConnected[2];
+
+        unsigned int lastTimestamps[2];
+        short playerInputs[2];
+
+        S2C_StatePacket worldState;
+        sf::Clock serverClock;
+        sf::Clock endClock;
+        bool pendingDelete;
+    };
+
     unsigned short port;
     bool isRunning;
     sf::UdpSocket udpSocket;
 
-    // Datos de la sala 1v1 (Arrays clásicos en lugar de vectores para optimizar RAM)
-    std::optional<sf::IpAddress> clientIPs[2]; // <--- CAMBIA ESTO
-    unsigned short clientPorts[2];
-    bool clientConnected[2];
-
-    unsigned int lastTimestamps[2];
-    short playerInputs[2];
-
-
-    S2C_StatePacket worldState;
-    sf::Clock serverClock;
+    std::map<unsigned int, MatchData> matches;
 
     // Métodos divididos correctamente
     void ProcessPackets();
-    void UpdatePhysics();
-    void BroadcastState();
+    void UpdatePhysics(MatchData& match);
+    void BroadcastState(MatchData& match);
+    void InitMatch(MatchData& match, unsigned int matchID);
+    void CleanupMatches();
 
 public:
     Server(unsigned short port);
@@ -36,7 +44,7 @@ public:
     void Stop();
 
 
-    void CheckCollisions();
+    void CheckCollisions(MatchData& match);
 
-    void HandlePlayerDeath(short playerIndex, short killerID);
+    void HandlePlayerDeath(MatchData& match, short playerIndex, short killerID);
 };
