@@ -5,7 +5,7 @@
 #include <optional>
 #include <map>
 #include "NetworkProtocol.h" // Asegúrate de tener este archivo copiado en esta solución
-
+#define UPDATE_SCORE 25
 class Server {
 private:
     struct MatchData {
@@ -16,7 +16,8 @@ private:
 
         unsigned int lastTimestamps[2];
         short playerInputs[2];
-
+        std::string playerNames[2];
+        bool isCompetitive;
         S2C_StatePacket worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
@@ -30,6 +31,7 @@ private:
     std::map<unsigned int, MatchData> matches;
 
     // Métodos divididos correctamente
+    short ELO_Update = UPDATE_SCORE;
     void ProcessPackets();
     void UpdatePhysics(MatchData& match);
     void BroadcastState(MatchData& match);
