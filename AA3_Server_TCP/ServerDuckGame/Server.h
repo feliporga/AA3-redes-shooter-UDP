@@ -68,6 +68,7 @@ private:
     void HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName);
     void HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName);
     void SendRankingToClient(sf::TcpSocket* client);
+    void HandleMapCheck(sf::TcpSocket* client, int clientVersion);
 
 public:
     Server(unsigned short port);

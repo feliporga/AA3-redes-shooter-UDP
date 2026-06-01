@@ -22,6 +22,9 @@ LoginScene::LoginScene() : Scene() {
 }
 
 void LoginScene::OnEnter() {
+    // PETICIÓN DE LAUNCHER AL ARRANCAR
+    NM.SendCheckMapVersion();
+
     // INICIALIZACIÓN DE OBJETOS UI
     titleText = new TextObject("DUCKGAME SHOOTER"); // ¡Actualizado al nuevo juego!
     titleText->GetTransform()->position = Vector2(winW / 2 - 190.0f, winH / 2 - 200);

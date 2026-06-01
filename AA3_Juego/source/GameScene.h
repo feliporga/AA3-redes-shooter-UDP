@@ -27,6 +27,7 @@ private:
 
     TextObject* statusText;
     void LoadPlayerAssets(short index, short playerID);
+    void LoadMap();
 
     //Bala
     Transform bulletTransforms[MAX_BULLETS];

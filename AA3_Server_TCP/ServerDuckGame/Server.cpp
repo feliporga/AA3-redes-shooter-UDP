@@ -139,6 +139,10 @@ void Server::HandleClientPackets() {
                             }
                         }
                     }
+                    else if (type == PacketType::CheckMapVersion) {
+                        int clientVersion; packet >> clientVersion;
+                        HandleMapCheck(client, clientVersion);
+                    }
                 }
                 i++;
             }
@@ -415,5 +419,29 @@ void Server::RemoveFromQueues(sf::TcpSocket* client) {
     for (auto it = compQueue.begin(); it != compQueue.end(); ) {
         if (it->socket == client) it = compQueue.erase(it);
         else ++it;
+    }
+}
+
+void Server::HandleMapCheck(sf::TcpSocket* client, int clientVersion) {
+    int officialServerVersion = 1; 
+
+    if (clientVersion < officialServerVersion) {
+        std::string mapData =
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            "0 0 0 0 0 0 0 0 1 1 1 1 0 0 0 0 0 0 0 0\n"
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            "0 0 1 1 1 0 0 0 0 0 0 0 0 0 1 1 1 0 0 0\n"
+            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1\n";
+
+        sf::Packet res;
+        res << (short)PacketType::UpdateMap << officialServerVersion << mapData;
+        client->send(res);
+        std::cout << "[LAUNCHER] Cliente desactualizado. Enviando mapa v" << officialServerVersion << std::endl;
+    }
+    else {
+        std::cout << "[LAUNCHER] Cliente verificado con el mapa correcto." << std::endl;
     }
 }

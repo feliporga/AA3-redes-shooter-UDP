@@ -46,7 +46,10 @@ enum class PacketType : short {
     Ack,
     SearchCasualRequest,
     SearchCompetitiveRequest,
-    CancelSearchRequest
+    CancelSearchRequest,
+    // --- NUEVOS PAQUETES DE LAUNCHER ---
+    CheckMapVersion,
+    UpdateMap
 };
 
 // Bitmask para las teclas (2 bytes)

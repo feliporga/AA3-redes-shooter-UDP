@@ -5,6 +5,7 @@
 #include <string>
 #include <optional> 
 #include <cstring>
+#include <fstream> // ¡Añadido para el Launcher!
 #include "NetworkProtocol.h"
 
 // --- MACROS Y DEFINES ---
@@ -86,6 +87,19 @@ public:
         return false;
     }
 
+    void SendCheckMapVersion() {
+        int version = 0; // Por defecto asumimos que no hay versión
+        std::ifstream versionFile("resources/mapa_version.txt");
+        if (versionFile.is_open()) {
+            versionFile >> version;
+            versionFile.close();
+        }
+
+        sf::Packet p;
+        p << (short)PacketType::CheckMapVersion << version;
+        tcpSocket.send(p);
+    }
+
     void SendLogin(const std::string& user, const std::string& pass) {
         savedUser = user; savedPass = pass;
         sf::Packet p;
@@ -124,7 +138,27 @@ public:
             if (packet >> typeInt) {
                 PacketType type = static_cast<PacketType>(typeInt);
 
-                if (type == PacketType::RankingResponse) {
+                if (type == PacketType::UpdateMap) {
+                    int newVersion;
+                    std::string newMapData;
+                    packet >> newVersion >> newMapData;
+
+                    // Escribimos el nuevo archivo mapa.txt
+                    std::ofstream mapFile("resources/mapa.txt");
+                    if (mapFile.is_open()) {
+                        mapFile << newMapData;
+                        mapFile.close();
+                    }
+
+                    // Actualizamos el txt de la versión local
+                    std::ofstream versionFile("resources/mapa_version.txt");
+                    if (versionFile.is_open()) {
+                        versionFile << newVersion;
+                        versionFile.close();
+                    }
+                    std::cout << "[LAUNCHER] Archivos actualizados a la version " << newVersion << " con exito." << std::endl;
+                }
+                else if (type == PacketType::RankingResponse) {
                     short size;
                     if (packet >> size) {
                         lastRanking.clear();
