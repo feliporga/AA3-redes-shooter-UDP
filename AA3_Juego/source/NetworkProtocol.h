@@ -72,6 +72,9 @@ struct C2S_InputPacket {
     unsigned int timestamp;
     short inputMask;
     unsigned int matchID = 0;
+
+    // Identifica cada input normal para poder hacer predicción y reconciliación
+    unsigned int movementID = 0;
 };
 
 // Paquete de Confirmación (Servidor -> Cliente UDP)
@@ -94,6 +97,9 @@ struct PlayerState {
 
     short hp;
     short lives;
+
+    //ultimo move player
+    unsigned int lastProcessedMovementID = 0;
 };
 
 

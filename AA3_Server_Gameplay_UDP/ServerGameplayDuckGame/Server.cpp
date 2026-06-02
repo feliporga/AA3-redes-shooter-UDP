@@ -18,6 +18,9 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.playerInputs[i] = INPUT_NONE;
         match.processedCriticalPackets[i].clear();
 
+        // Inicializamos la confirmación de movimientos de cada jugador
+        match.lastProcessedMovementID[i] = 0;
+
         match.worldState.players[i].id = i + 1;
         match.worldState.players[i].posX = 100 + (i * 400);
         match.worldState.players[i].posY = 300;
@@ -30,6 +33,9 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
 
         match.worldState.players[i].hp = INITIAL_HP;
         match.worldState.players[i].lives = INITIAL_LIVES;
+
+        // El cliente todavía no tiene movimientos confirmados en esta partida
+        match.worldState.players[i].lastProcessedMovementID = 0;
     }
 
     match.worldState.isGameOver = false;
@@ -160,19 +166,28 @@ void Server::ProcessPackets() {
         }
         else if (in.type == (short)PacketType::GameMove) {
 
-            if (in.type == (short)PacketType::GameMove) {
-                short idx = in.playerID - 1;
-                if (idx >= 0 && idx < 2) {
-                    if (!match.clientConnected[idx]) {
-                        match.clientIPs[idx] = sender;
-                        match.clientPorts[idx] = senderPort;
-                        match.clientConnected[idx] = true;
-                        std::cout << "[UDP] Jugador " << in.playerID << " enlazado desde " << sender->toString() << ":" << senderPort << std::endl;
-                    }
+            short idx = in.playerID - 1;
+            if (idx >= 0 && idx < 2) {
+                if (!match.clientConnected[idx]) {
+                    match.clientIPs[idx] = sender;
+                    match.clientPorts[idx] = senderPort;
+                    match.clientConnected[idx] = true;
+                    std::cout << "[UDP] Jugador " << in.playerID << " enlazado desde " << sender->toString() << ":" << senderPort << std::endl;
+                }
 
+                // Los paquetes críticos son acciones puntuales, no sustituyen el input continuo.
+                // Así un disparo no borra temporalmente el movimiento del jugador.
+                if (!(flags & CRITICAL_PACKET)) {
                     if (in.timestamp >= match.lastTimestamps[idx]) {
                         match.lastTimestamps[idx] = in.timestamp;
                         match.playerInputs[idx] = in.inputMask;
+
+                        // Guardamos hasta qué movimiento normal hemos procesado.
+                        // Este ID viajará en el snapshot para que el cliente pueda reconciliar.
+                        if (in.movementID > match.lastProcessedMovementID[idx]) {
+                            match.lastProcessedMovementID[idx] = in.movementID;
+                            match.worldState.players[idx].lastProcessedMovementID = in.movementID;
+                        }
                     }
                 }
             }
@@ -222,7 +237,11 @@ void Server::UpdatePhysics(MatchData& match) {
 
 void Server::BroadcastState(MatchData& match) {
     match.worldState.timestamp = match.serverClock.getElapsedTime().asMilliseconds();
+
     for (short i = 0; i < 2; i++) {
+        // El snapshot lleva la posición oficial y el último movimiento procesado.
+        match.worldState.players[i].lastProcessedMovementID = match.lastProcessedMovementID[i];
+
         if (match.clientConnected[i] && match.clientIPs[i].has_value()) {
             udpSocket.send(&match.worldState, sizeof(S2C_StatePacket), match.clientIPs[i].value(), match.clientPorts[i]);
         }

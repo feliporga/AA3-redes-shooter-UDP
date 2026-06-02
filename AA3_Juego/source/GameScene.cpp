@@ -4,7 +4,11 @@
 #include "Spawner.h"
 #include <iostream>
 #include <fstream>
-#include <sstream>
+
+// Valores utilizados para la predicción local y la interpolación del rival
+const float LOCAL_PREDICTION_SPEED = 5.0f;
+const unsigned int INTERPOLATION_DELAY = 100;
+const unsigned int MAX_REMOTE_SNAPSHOTS = 30;
 
 class TileObject : public Object {
 public:
@@ -18,6 +22,10 @@ public:
 GameScene::GameScene() : Scene() {
     statusText = nullptr;
     lastServerTimestamp = 0;
+    hasInitialServerState = false;
+    nextMovementID = 1;
+    hasServerTimeOffset = false;
+    serverTimeOffset = 0;
 
     // Inicializar balas
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -41,17 +49,22 @@ void GameScene::LoadMap() {
     int row = 0;
 
     while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        int tileType;
         int col = 0;
 
-        while (ss >> tileType) {
-            if (tileType == 1) {
-                TileObject* tile = new TileObject(col * 32.0f, row * 32.0f);
-                SPAWN.SpawnObject(tile);
+        // El mapa actual utiliza valores 0 y 1 separados por espacios
+        for (std::size_t i = 0; i < line.size(); i++) {
+            if (line[i] == '0' || line[i] == '1') {
+                int tileType = line[i] - '0';
+
+                if (tileType == 1) {
+                    TileObject* tile = new TileObject(col * 32.0f, row * 32.0f);
+                    SPAWN.SpawnObject(tile);
+                }
+
+                col++;
             }
-            col++;
         }
+
         row++;
     }
     file.close();
@@ -80,7 +93,130 @@ void GameScene::LoadPlayerAssets(short index, short playerID) {
     playerModels[index].activeRenderer = playerModels[index].rendIdle;
 }
 
+void GameScene::ApplyLocalHorizontalPrediction(short inputMask) {
+    if (!hasInitialServerState || NM.myPlayerID == 0) return;
+
+    short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
+    float predictedVelocityX = 0.0f;
+
+    if (inputMask & INPUT_LEFT) predictedVelocityX = -LOCAL_PREDICTION_SPEED;
+    if (inputMask & INPUT_RIGHT) predictedVelocityX = LOCAL_PREDICTION_SPEED;
+
+    playerModels[localIndex].transform.position.x += predictedVelocityX;
+}
+
+void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
+    short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
+
+    // BACK:
+    // Volvemos siempre a la posición oficial que ha calculado el servidor.
+    playerModels[localIndex].transform.position =
+        Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
+
+    // Eliminamos los inputs que el servidor ya ha incluido en su posición oficial.
+    for (std::size_t i = 0; i < pendingMovements.size(); ) {
+        if (pendingMovements[i].movementID <= serverPlayer.lastProcessedMovementID) {
+            pendingMovements.erase(pendingMovements.begin() + i);
+        }
+        else {
+            i++;
+        }
+    }
+
+    // Reaplicamos únicamente los inputs posteriores que aún no ha confirmado el servidor.
+    for (std::size_t i = 0; i < pendingMovements.size(); i++) {
+        ApplyLocalHorizontalPrediction(pendingMovements[i].inputMask);
+    }
+}
+
+void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp) {
+    RemoteSnapshot newSnapshot;
+    newSnapshot.timestamp = timestamp;
+    newSnapshot.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
+
+    bool inserted = false;
+
+    // Guardamos los estados del rival ordenados para que los paquetes UDP desordenados
+    // no provoquen que el personaje vuelva atrás en pantalla.
+    for (std::vector<RemoteSnapshot>::iterator it = remoteSnapshots.begin(); it != remoteSnapshots.end(); ++it) {
+        if (it->timestamp == newSnapshot.timestamp) {
+            return;
+        }
+
+        if (it->timestamp > newSnapshot.timestamp) {
+            remoteSnapshots.insert(it, newSnapshot);
+            inserted = true;
+            break;
+        }
+    }
+
+    if (!inserted) {
+        remoteSnapshots.push_back(newSnapshot);
+    }
+
+    if (remoteSnapshots.size() > MAX_REMOTE_SNAPSHOTS) {
+        remoteSnapshots.erase(remoteSnapshots.begin());
+    }
+}
+
+void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
+    if (!hasInitialServerState || NM.myPlayerID == 0 || remoteSnapshots.empty()) return;
+
+    short enemyIndex = (NM.myPlayerID == 1) ? 1 : 0;
+
+    if (!hasServerTimeOffset) {
+        serverTimeOffset = (int)currentTime - (int)remoteSnapshots.back().timestamp;
+        hasServerTimeOffset = true;
+    }
+
+    // Dibujamos al rival unos milisegundos por detrás para tener dos estados
+    // entre los que interpolar y evitar teletransportes.
+    int renderTimestamp =
+        (int)currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
+
+    while (remoteSnapshots.size() >= 2 &&
+        (int)remoteSnapshots[1].timestamp <= renderTimestamp) {
+        remoteSnapshots.erase(remoteSnapshots.begin());
+    }
+
+    if (remoteSnapshots.size() == 1) {
+        playerModels[enemyIndex].transform.position = remoteSnapshots[0].position;
+        return;
+    }
+
+    RemoteSnapshot& firstSnapshot = remoteSnapshots[0];
+    RemoteSnapshot& secondSnapshot = remoteSnapshots[1];
+
+    float timeRange = (float)(secondSnapshot.timestamp - firstSnapshot.timestamp);
+    float interpolationValue = 0.0f;
+
+    if (timeRange > 0.0f) {
+        interpolationValue =
+            ((float)renderTimestamp - (float)firstSnapshot.timestamp) / timeRange;
+    }
+
+    if (interpolationValue < 0.0f) interpolationValue = 0.0f;
+    if (interpolationValue > 1.0f) interpolationValue = 1.0f;
+
+    playerModels[enemyIndex].transform.position.x =
+        firstSnapshot.position.x +
+        (secondSnapshot.position.x - firstSnapshot.position.x) * interpolationValue;
+
+    playerModels[enemyIndex].transform.position.y =
+        firstSnapshot.position.y +
+        (secondSnapshot.position.y - firstSnapshot.position.y) * interpolationValue;
+}
+
 void GameScene::OnEnter() {
+    lastServerTimestamp = 0;
+    hasInitialServerState = false;
+    nextMovementID = 1;
+    pendingMovements.clear();
+    remoteSnapshots.clear();
+    hasServerTimeOffset = false;
+    serverTimeOffset = 0;
+    gameClock.restart();
+
     LoadPlayerAssets(0, 1);
     LoadPlayerAssets(1, 2);
 
@@ -110,7 +246,11 @@ void GameScene::Update() {
 
         bool currentJump = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space);
         short myIndex = (NM.lastState.players[0].id == NM.myPlayerID) ? 0 : 1;
-        bool currentOnGround = NM.lastState.players[myIndex].onGround;
+        bool currentOnGround = false;
+
+        if (hasInitialServerState) {
+            currentOnGround = NM.lastState.players[myIndex].onGround;
+        }
 
         if (currentJump) {
             mask |= INPUT_JUMP;
@@ -122,7 +262,21 @@ void GameScene::Update() {
         prevJump = currentJump;
         prevOnGround = currentOnGround;
 
-        NM.SendUDPInput(mask, currentTime);
+        unsigned int movementID = nextMovementID++;
+
+        NM.SendUDPInput(mask, currentTime, movementID);
+
+        // PREDICCIÓN LOCAL:
+        // El jugador propio responde al movimiento horizontal sin esperar la respuesta del servidor.
+        // El input queda almacenado hasta que el servidor confirme que ya lo ha procesado.
+        if (hasInitialServerState && NM.myPlayerID != 0) {
+            PendingMovement newMovement;
+            newMovement.movementID = movementID;
+            newMovement.inputMask = mask;
+            pendingMovements.push_back(newMovement);
+
+            ApplyLocalHorizontalPrediction(mask);
+        }
 
         // SHOUT (F)
         static bool prevShoot = false;
@@ -144,6 +298,7 @@ void GameScene::Update() {
 
             // Taunt
             static bool prevTaunting[2] = { false, false };
+            bool firstServerState = !hasInitialServerState;
 
             for (short i = 0; i < 2; i++) {
                 PlayerState& s = NM.lastState.players[i];
@@ -155,7 +310,24 @@ void GameScene::Update() {
                 }
                 prevTaunting[i] = s.isTaunting;
 
-                m.transform.position = Vector2((float)s.posX, (float)s.posY);
+                bool isLocalPlayer = (s.id == NM.myPlayerID);
+
+                if (firstServerState) {
+                    // El primer estado recibido coloca directamente a ambos jugadores
+                    m.transform.position = Vector2((float)s.posX, (float)s.posY);
+                }
+                else if (isLocalPlayer) {
+                    // RECONCILIACIÓN:
+                    // El servidor devuelve su posición oficial y el último movementID procesado.
+                    // El cliente vuelve a ese punto y reaplica los movimientos aún pendientes.
+                    ReconcileLocalPlayer(s);
+                }
+
+                if (!isLocalPlayer) {
+                    // INTERPOLACIÓN:
+                    // El rival se guarda en un buffer ordenado y se mostrará suavizado.
+                    AddRemoteSnapshot(s, NM.lastState.timestamp);
+                }
 
                 if (s.velX < 0) m.transform.scale = Vector2(1.0f, 1.0f);
                 else if (s.velX > 0) m.transform.scale = Vector2(-1.0f, 1.0f);
@@ -171,6 +343,14 @@ void GameScene::Update() {
                 }
 
             }
+
+            if (firstServerState) {
+                // Los movimientos anteriores al primer estado ya pertenecen al arranque oficial
+                pendingMovements.clear();
+            }
+
+            hasInitialServerState = true;
+
             for (int i = 0; i < MAX_BULLETS; i++) {
                 bulletActive[i] = NM.lastState.bullets[i].active;
                 bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
@@ -178,6 +358,10 @@ void GameScene::Update() {
         }
         NM.newStateReceived = false;
     }
+
+    // INTERPOLACIÓN DEL RIVAL:
+    // El rival se renderiza entre estados almacenados, no directamente en la última posición recibida.
+    InterpolateRemotePlayer(currentTime);
 
     for (short i = 0; i < 2; i++) {
         if (playerModels[i].activeRenderer) {

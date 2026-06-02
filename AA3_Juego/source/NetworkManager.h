@@ -212,7 +212,7 @@ public:
 
     // UDP
 
-    void SendUDPInput(short mask, unsigned int time) {
+    void SendUDPInput(short mask, unsigned int time, unsigned int movementID) {
         if (!serverUdpIp.has_value()) return;
 
         C2S_InputPacket packet;
@@ -222,6 +222,9 @@ public:
         packet.timestamp = time;
         packet.inputMask = mask;
         packet.matchID = currentMatchID;
+
+        // Los inputs normales llevan ID para que el cliente pueda reconciliar
+        packet.movementID = movementID;
 
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
     }
@@ -236,6 +239,9 @@ public:
         packet.timestamp = time;
         packet.inputMask = mask;
         packet.matchID = currentMatchID;
+
+        // Los disparos usan packetID para ACK, no forman parte de la reconciliación de movimiento
+        packet.movementID = 0;
 
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
         unackedPackets.push_back({ packet, time });
@@ -266,13 +272,15 @@ public:
                 S2C_AckPacket ack;
                 std::memcpy(&ack, buffer, sizeof(S2C_AckPacket));
 
-                for (auto it = unackedPackets.begin(); it != unackedPackets.end(); ) {
-                    if (it->packet.packetID == ack.ackedPacketID) {
+                for (size_t i = 0; i < unackedPackets.size(); ) {
+                    if (unackedPackets[i].packet.packetID == ack.ackedPacketID) {
                         std::cout << "[CLIENTE] ACK recibido (ID: " << ack.ackedPacketID << "). Borrando de la cola." << std::endl;
-                        it = unackedPackets.erase(it);
+                        // Borramos usando el iterador begin() más el índice actual
+                        unackedPackets.erase(unackedPackets.begin() + i);
                     }
                     else {
-                        ++it;
+                        // Solo avanzamos el índice si NO hemos borrado nada
+                        i++;
                     }
                 }
             }

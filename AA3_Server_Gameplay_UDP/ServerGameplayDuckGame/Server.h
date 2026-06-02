@@ -21,6 +21,9 @@ private:
 
         std::vector<unsigned int> processedCriticalPackets[2];
 
+        // Último input normal procesado de cada jugador para reconciliar en cliente
+        unsigned int lastProcessedMovementID[2];
+
         S2C_StatePacket worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
