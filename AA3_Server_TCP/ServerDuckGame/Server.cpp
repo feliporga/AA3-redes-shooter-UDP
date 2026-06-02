@@ -120,11 +120,46 @@ void Server::HandleClientPackets() {
                         std::cout << "[MATCHMAKING] Player canceled search." << std::endl;
                     }
                     else if (type == PacketType::ReportResult) {
-                        unsigned short matchID;
-                        short winnerID;
-                        packet >> winnerID >> matchID;
-                        ApplyMatchResult(matchID, winnerID);
-                      /*  std::string username = loggedInUsers[client];
+                        bool hasWon;
+                        packet >> hasWon;
+
+                        if (!competitivePlayers[client]) return;
+                        if (reportedResults[client]) return;
+
+                        reportedResults[client] = true;
+
+                        std::string username = loggedInUsers[client];
+
+                        try {
+                            sql::PreparedStatement* pstmt;
+
+                            if (hasWon) {
+                                pstmt = con->prepareStatement(
+                                    "UPDATE users "
+                                    "SET points = points + 25, wins = wins + 1 "
+                                    "WHERE userName = ?"
+                                );
+                            }
+                            else {
+                                pstmt = con->prepareStatement(
+                                    "UPDATE users "
+                                    "SET points = GREATEST(points - 25, 0), losses = losses + 1 "
+                                    "WHERE userName = ?"
+                                );
+                            }
+
+                            pstmt->setString(1, username);
+                            pstmt->executeUpdate();
+                            delete pstmt;
+                        }
+                        catch (sql::SQLException& e) {
+                            std::cout << "[DATABASE ERROR] Could not update ELO: "
+                                << e.what() << std::endl;
+                        }
+                       /* short winnerID;
+                        packet >> winnerID;
+
+                        std::string username = loggedInUsers[client];
                         if (!username.empty()) {
                             try {
                                 sql::PreparedStatement* pstmt = con->prepareStatement(
@@ -365,7 +400,6 @@ void Server::ProcessMatchmaking() {
 
         std::cout << "[MATCHMAKING] Casual match found!" << std::endl;
         StartGameForPlayers(p1, p2, false);
-        
     }
 
     if (compQueue.size() >= 2) {
@@ -390,11 +424,14 @@ void Server::ProcessMatchmaking() {
 }
 
 void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive) {
-    unsigned short matchID = nextMatchID++;
-    activeMatches[matchID] = {
-    { loggedInUsers[p1], loggedInUsers[p2] },
-    isCompetitive
-    };
+    competitivePlayers[p1] = isCompetitive;
+    competitivePlayers[p2] = isCompetitive;
+
+    reportedResults[p1] = false;
+    reportedResults[p2] = false;
+
+    unsigned int matchID = nextMatchID++;
+
     std::cout << "[MATCHMAKING] Handoff to UDP Game Server initializing... MatchID: " << matchID << std::endl;
 
     for (short i = 0; i < 2; i++) {
@@ -407,44 +444,6 @@ void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCo
 
         if (i == 0) p1->send(startP);
         else p2->send(startP);
-    }
-}
-
-void Server::ApplyMatchResult(unsigned int matchID, short winnerID) {
-    auto it = activeMatches.find(matchID);
-    if (it == activeMatches.end()) return;
-
-    ActiveMatch match = it->second;
-    activeMatches.erase(it); // Evita actualizar dos veces la misma partida
-
-    if (!match.isCompetitive) return;
-    if (winnerID < 1 || winnerID > 2) return;
-
-    short winnerIndex = winnerID - 1;
-    short loserIndex = winnerIndex == 0 ? 1 : 0;
-
-    try {
-        sql::PreparedStatement* winnerStmt = con->prepareStatement(
-            "UPDATE users SET points = points + ?, wins = wins + 1 "
-            "WHERE userName = ?"
-        );
-        winnerStmt->setInt(1, ELO_CHANGE);
-        winnerStmt->setString(2, match.playerNames[winnerIndex]);
-        winnerStmt->executeUpdate();
-        delete winnerStmt;
-
-        sql::PreparedStatement* loserStmt = con->prepareStatement(
-            "UPDATE users SET points = GREATEST(points - ?, 0), "
-            "losses = losses + 1 WHERE userName = ?"
-        );
-        loserStmt->setInt(1, ELO_CHANGE);
-        loserStmt->setString(2, match.playerNames[loserIndex]);
-        loserStmt->executeUpdate();
-        delete loserStmt;
-    }
-    catch (sql::SQLException& e) {
-        std::cout << "[DATABASE ERROR] Could not update ELO: "
-            << e.what() << std::endl;
     }
 }
 

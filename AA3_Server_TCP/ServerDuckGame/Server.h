@@ -51,19 +51,11 @@ private:
 
     std::vector<sf::TcpSocket*> casualQueue;
     std::vector<CompPlayer> compQueue;
-    short ELO_CHANGE = 25;
-
-    struct ActiveMatch {
-        std::string playerNames[2];
-        bool isCompetitive;
-    };
-
-    std::map<unsigned int, ActiveMatch> activeMatches;
-
+    std::map<sf::TcpSocket*, bool> competitivePlayers;
+    std::map<sf::TcpSocket*, bool> reportedResults;
     // Matchmaking core functions
     void ProcessMatchmaking();
     void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
-    void ApplyMatchResult(unsigned int matchID, short winnerID);
     void RemoveFromQueues(sf::TcpSocket* client);
 
     // Métodos de gestión interna

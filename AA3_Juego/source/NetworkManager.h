@@ -66,6 +66,7 @@ public:
     bool loginSuccess = false;
     bool loginError = false;
     bool gameStarted = false;
+    bool resultReported = false;
 
     S2C_StatePacket lastState;
     bool newStateReceived = false;
@@ -164,15 +165,19 @@ public:
                     unackedPackets.clear();
                     nextPacketID = 1;
 
+                    resultReported = false;
                     gameStarted = true;
                     std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << " en el puerto " << dynamicUdpPort << std::endl;
                 }
             }
         }
     }
-    void SendReportResult(short winnerPlayerID) {
-        sf::Packet p;
+    void SendReportResult(short winnerPlayerID, bool hasWon) {
+       /* sf::Packet p;
         p << (short)PacketType::ReportResult << winnerPlayerID;
+        tcpSocket.send(p);*/
+        sf::Packet p;
+        p << (short)PacketType::ReportResult << hasWon;
         tcpSocket.send(p);
     }
 

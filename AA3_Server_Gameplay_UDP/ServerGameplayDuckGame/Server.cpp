@@ -260,9 +260,6 @@ void Server::HandlePlayerDeath(MatchData& match, short playerIndex, short killer
         match.worldState.winnerID = killerID; // El ganador es el que dio el último tiro
         match.pendingDelete = true;
         match.endClock.restart();
-        /*sf::Packet resultPacket;
-        resultPacket << (short)PacketType::ReportResult << matchID << winnerID;
-        tcpSocket.send(resultPacket);*/
         std::cout << "[UDP] GAME OVER! Ganador: Jugador " << killerID << std::endl;
     }
     else {
@@ -279,13 +276,13 @@ void Server::HandlePlayerDeath(MatchData& match, short playerIndex, short killer
 
 
 void Server::CleanupMatches() {
-    for (std::map<unsigned int, MatchData>::iterator it = matches.begin(); it != matches.end(); ) {
+    for (auto it = matches.begin(); it != matches.end(); ) {
         if (it->second.pendingDelete && it->second.endClock.getElapsedTime().asSeconds() > 5.0f) {
             std::cout << "[UDP] Eliminando partida finalizada. MatchID: " << it->first << std::endl;
             it = matches.erase(it);
         }
         else {
-            it++;
+            ++it;
         }
     }
 }
