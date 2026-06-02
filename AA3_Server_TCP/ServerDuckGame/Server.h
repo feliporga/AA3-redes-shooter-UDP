@@ -5,6 +5,13 @@
 #include <string>
 #include <map>
 
+// librerias para usar los hilos
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+
 #include "mysql_connection.h"
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
@@ -30,20 +37,21 @@ private:
     std::vector<sf::TcpSocket*> clients;
     std::map<sf::TcpSocket*, std::string> loggedInUsers;
 
-    unsigned int nextMatchID = 1;
+    // usamos short para ahorrar memoria
+    unsigned short nextMatchID = 1;
 
-    // Conexión MySQL
+    // conexion de la base de datos
     sql::Driver* driver;
     sql::Connection* con;
 
-    // Estructura de Sala para el Shooter 1v1
+    // guardamos los jugadores de cada sala
     struct Room {
         std::string name;
         std::vector<sf::TcpSocket*> players;
     };
     std::vector<Room> activeRooms;
 
-    //Queues
+    // colas para buscar partida
     struct CompPlayer {
         sf::TcpSocket* socket;
         short elo;
@@ -54,12 +62,25 @@ private:
     std::map<sf::TcpSocket*, bool> competitivePlayers;
     std::map<sf::TcpSocket*, bool> reportedResults;
     std::map<sf::TcpSocket*, std::string> opponentUsers;
-    // Matchmaking core functions
+
+    // variables del pool de hilos
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex queueMutex;
+    std::mutex dataMutex; // candado para no pisar la memoria compartida
+    std::condition_variable condition;
+    bool stopPool;
+
+    // funciones de los hilos
+    void ThreadPoolWorker();
+    void EnqueueTask(std::function<void()> task);
+
+    // matchmaking
     void ProcessMatchmaking();
     void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
     void RemoveFromQueues(sf::TcpSocket* client);
 
-    // Métodos de gestión interna
+    // movidas internas del server
     bool ConnectDatabase();
     void DisconnectDatabase();
     bool CheckUserLogin(const std::string& user, const std::string& password);
@@ -70,7 +91,9 @@ private:
     void HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName);
     void HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName);
     void SendRankingToClient(sf::TcpSocket* client);
-    void HandleMapCheck(sf::TcpSocket* client, int clientVersion);
+
+    // cambiamos a short la version
+    void HandleMapCheck(sf::TcpSocket* client, short clientVersion);
 
 public:
     Server(unsigned short port);

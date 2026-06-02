@@ -73,7 +73,7 @@ public:
         _songs.emplace(name, loadedMusic);
     }
 
-    inline void PlayClip(std::string name, int repetitions)
+    inline void PlayClip(std::string name, short repetitions)
     {
         if (_muted || _clips.find(name) == _clips.end()) return;
 

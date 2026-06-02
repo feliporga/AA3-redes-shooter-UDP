@@ -66,22 +66,22 @@ enum InputFlags : short {
 // Paquete de Input (Cliente -> Servidor UDP)
 struct C2S_InputPacket {
     uint8_t flags = NORMAL_PACKET;
-    unsigned int packetID = 0;
+    unsigned short packetID = 0;
     short type = (short)PacketType::GameMove;
     short playerID;
     unsigned int timestamp;
     short inputMask;
-    unsigned int matchID = 0;
+    unsigned short matchID = 0;
 
     // Identifica cada input normal para poder hacer predicción y reconciliación
-    unsigned int movementID = 0;
+    unsigned short movementID = 0;
 };
 
 // Paquete de Confirmación (Servidor -> Cliente UDP)
 struct S2C_AckPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Ack;
-    unsigned int ackedPacketID;
+    unsigned short ackedPacketID;
 };
 
 struct PlayerState {
@@ -99,7 +99,7 @@ struct PlayerState {
     short lives;
 
     //ultimo move player
-    unsigned int lastProcessedMovementID = 0;
+    unsigned short lastProcessedMovementID = 0;
 };
 
 
@@ -119,6 +119,6 @@ struct S2C_StatePacket {
     BulletState bullets[MAX_BULLETS];
     bool isGameOver = false;
     short winnerID = 0;
-    unsigned int matchID = 0;
+    unsigned short matchID = 0;
 };
 #pragma pack(pop)

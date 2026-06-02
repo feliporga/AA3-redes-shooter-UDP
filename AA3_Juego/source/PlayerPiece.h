@@ -6,13 +6,13 @@
 #define PIECE_SIZE 293.0f
 class PlayerPiece : public Object {
 private:
-    int playerID;
+    short playerID;
 
-    static std::string GetSpritePath(int player);
+    static std::string GetSpritePath(short player);
 
 public:
-    PlayerPiece(int player, const Vector2& position);
+    PlayerPiece(short player, const Vector2& position);
     ~PlayerPiece() = default;
 
-    int GetPlayerID() const { return playerID; }
+    short GetPlayerID() const { return playerID; }
 };

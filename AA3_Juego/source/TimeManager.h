@@ -12,7 +12,7 @@ private:
     float elapsedTime = 0.0f;
     float previousElapsedTime = 0.0f;
 
-    static const int FPS = 60;
+    static const short FPS = 60;
     float frameTime;
 
     TimeManager() {

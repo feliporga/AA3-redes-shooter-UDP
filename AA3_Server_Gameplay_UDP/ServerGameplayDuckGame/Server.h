@@ -7,13 +7,21 @@
 #include <vector>
 #include "NetworkProtocol.h" 
 
+// librerias para la pool de hilos
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+
 #define PLAYER_TIMEOUT_SECONDS 5
 #define PLAYER_WARNING_SECONDS 2
+
 class Server {
 private:
     struct MatchData {
-        // Datos de la sala 1v1 (Arrays clásicos en lugar de vectores para optimizar RAM)
-        std::optional<sf::IpAddress> clientIPs[2]; // <--- CAMBIA ESTO
+        // arrays de 2 para no usar ram extra
+        std::optional<sf::IpAddress> clientIPs[2];
         unsigned short clientPorts[2];
         bool clientConnected[2];
 
@@ -22,7 +30,7 @@ private:
 
         std::vector<unsigned int> processedCriticalPackets[2];
 
-        // Último input normal procesado de cada jugador para reconciliar en cliente
+        // ultimo id que procesamos para reconciliar
         unsigned int lastProcessedMovementID[2];
 
         S2C_StatePacket worldState;
@@ -39,7 +47,18 @@ private:
 
     std::map<unsigned int, MatchData> matches;
 
-    // Métodos divididos correctamente
+    // movidas de los hilos
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex queueMutex;
+    std::mutex dataMutex; // candado principal del mapa
+    std::condition_variable condition;
+    bool stopPool;
+
+    void ThreadPoolWorker();
+    void EnqueueTask(std::function<void()> task);
+
+    // funciones del server
     void ProcessPackets();
     void UpdatePhysics(MatchData& match);
     void BroadcastState(MatchData& match);
@@ -54,8 +73,6 @@ public:
     void Run();
     void Stop();
 
-
     void CheckCollisions(MatchData& match);
-
     void HandlePlayerDeath(MatchData& match, short playerIndex, short killerID);
 };

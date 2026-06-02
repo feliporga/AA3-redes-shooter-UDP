@@ -5,17 +5,17 @@
 class AnimatedImageRenderer : public ImageRenderer
 {
 private:
-    int frameWidth;
-    int frameHeight;
-    int fps;
+    short frameWidth;
+    short frameHeight;
+    short fps;
     bool looping;
     float frameTime;
     float currentFrameTime;
-    int totalFrameCount;
-    int currentFrameIndex;
+    short totalFrameCount;
+    short currentFrameIndex;
 
 public:
-    AnimatedImageRenderer(int frameWidth, int frameHeight, int fps, bool looping,
+    AnimatedImageRenderer(short frameWidth, short frameHeight, short fps, bool looping,
         Transform* transform, std::string resourcePath, Vector2 sourceOffset,
         Vector2 sourceSize)
         : ImageRenderer(transform, resourcePath, sourceOffset, sourceSize),
@@ -23,10 +23,10 @@ public:
     {
         frameTime = 1.0f / fps;
         currentFrameTime = 0.0f;
-        totalFrameCount = (int)sourceSize.x / frameWidth;
+        totalFrameCount = (short)(sourceSize.x / frameWidth);
         currentFrameIndex = 0;
 
-        sourceRect = sf::IntRect({ (int)sourceOffset.x, (int)sourceOffset.y }, { frameWidth, frameHeight });
+        sourceRect = sf::IntRect({ (short)sourceOffset.x, (short)sourceOffset.y }, { frameWidth, frameHeight });
 
         // CORRECCIÓN AQUÍ: Usamos -> porque sprite ahora es un puntero
         if (sprite) {

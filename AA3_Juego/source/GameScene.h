@@ -22,7 +22,7 @@ struct PlayerModel {
 
 // Input local aplicado antes de recibir confirmación del servidor
 struct PendingMovement {
-    unsigned int movementID;
+    unsigned short movementID;
     short inputMask;
 };
 
@@ -42,7 +42,7 @@ private:
     bool hasInitialServerState;
 
     // ID independiente de packetID: identifica movimientos normales pendientes de reconciliar
-    unsigned int nextMovementID;
+    unsigned short nextMovementID;
     std::vector<PendingMovement> pendingMovements;
 
     // Buffer de estados del rival, ordenado por timestamp para interpolar aunque UDP llegue desordenado

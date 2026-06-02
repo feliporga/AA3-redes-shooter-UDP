@@ -102,7 +102,7 @@ void RenderManager::CreateWindow()
     window->setFramerateLimit(60);
 }
 
-void RenderManager::DrawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a)
+void RenderManager::DrawRect(short x, short y, short w, short h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a)
 {
     sf::RectangleShape rect(sf::Vector2f((float)w, (float)h));
     rect.setPosition({ (float)x, (float)y }); 

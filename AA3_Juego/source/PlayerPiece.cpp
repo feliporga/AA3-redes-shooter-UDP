@@ -1,7 +1,7 @@
 #include "PlayerPiece.h"
 #include "RenderManager.h"
 
-std::string PlayerPiece::GetSpritePath(int player) {
+std::string PlayerPiece::GetSpritePath(short player) {
     if (player == 1) return "resources/player1.png";
     if (player == 2) return "resources/player2.png";
     if (player == 3) return "resources/player3.png";
@@ -9,7 +9,7 @@ std::string PlayerPiece::GetSpritePath(int player) {
     return "";
 }
 
-PlayerPiece::PlayerPiece(int player, const Vector2& position)
+PlayerPiece::PlayerPiece(short player, const Vector2& position)
     : Object(), playerID(player)
 {
     transform->position = position + Vector2(50.0f, 50.0f);

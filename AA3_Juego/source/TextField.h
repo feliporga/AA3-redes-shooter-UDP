@@ -74,8 +74,8 @@ public:
     }
 
     void Render() override {
-        RM->DrawRect((int)transform->position.x, (int)transform->position.y,
-            (int)size.x, (int)size.y,
+        RM->DrawRect((short)transform->position.x, (short)transform->position.y,
+            (short)size.x, (short)size.y,
             isFocused ? focusColor.r : baseColor.r,
             isFocused ? focusColor.g : baseColor.g,
             isFocused ? focusColor.b : baseColor.b, 255);

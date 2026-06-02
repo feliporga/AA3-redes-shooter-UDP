@@ -11,7 +11,7 @@ enum KeyState { EMPTY, DOWN, UP, HOLD, RELEASED };
 
 class InputManager {
 private:
-    int mouseX, mouseY;
+    short mouseX, mouseY;
     bool leftClick;
     std::string textBuffer;
     std::unordered_map<sf::Keyboard::Key, KeyState> keyReference;
@@ -62,8 +62,8 @@ public:
         return false;
     }
 
-    inline int GetMouseX() const { return mouseX; }
-    inline int GetMouseY() const { return mouseY; }
+    inline short GetMouseX() const { return mouseX; }
+    inline short GetMouseY() const { return mouseY; }
     inline bool GetLeftClick() const { return leftClick; }
     inline std::string GetTextBuffer() const { return textBuffer; }
     inline bool GetEvent(sf::Keyboard::Key input, KeyState inputValue) { return keyReference[input] == inputValue; }

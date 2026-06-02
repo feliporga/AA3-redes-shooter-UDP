@@ -36,7 +36,7 @@ public:
 		return o;
 	}
 
-	inline int GetSpawnedObjectCount()
+	inline short GetSpawnedObjectCount()
 	{
 		return spawnedObjects.size();
 	}

@@ -27,8 +27,8 @@ private:
 
     bool prevLeftClick;
 
-    int windowWidth = RM->WINDOW_WIDTH;
-    int windowHeight = RM->WINDOW_HEIGHT;
+    short windowWidth = RM->WINDOW_WIDTH;
+    short windowHeight = RM->WINDOW_HEIGHT;
 
 public:
     Button(const Vector2& position,
@@ -92,10 +92,10 @@ public:
     }
 
     void Render() override {
-        RM->DrawRect((int)transform->position.x,
-            (int)transform->position.y,
-            (int)size.x,
-            (int)size.y,
+        RM->DrawRect((short)transform->position.x,
+            (short)transform->position.y,
+            (short)size.x,
+            (short)size.y,
             color.r, color.g, color.b, color.a);
 
         if (textRenderer) {

@@ -72,7 +72,7 @@ void RankingScene::OnEnter() {
     float spacing = 40.0f;
     tableRows.clear();
 
-    for (int i = 0; i < 11; i++) {
+    for (short i = 0; i < 11; i++) {
         RankRowUI row;
         float currentY = startY + (i * spacing);
 

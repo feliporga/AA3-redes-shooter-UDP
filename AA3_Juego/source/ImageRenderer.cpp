@@ -12,7 +12,7 @@ ImageRenderer::ImageRenderer(Transform* transform, std::string resourcePath, Vec
         sprite = new sf::Sprite(*tex);
     }
 
-    sourceRect = sf::IntRect({ (int)sourceOffset.x, (int)sourceOffset.y }, { (int)sourceSize.x, (int)sourceSize.y });
+    sourceRect = sf::IntRect({ (short)sourceOffset.x, (short)sourceOffset.y }, { (short)sourceSize.x, (short)sourceSize.y });
 
     if (sprite) {
         sprite->setTextureRect(sourceRect);

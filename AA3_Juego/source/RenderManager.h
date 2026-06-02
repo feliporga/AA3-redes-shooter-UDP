@@ -29,8 +29,8 @@ public:
 
     sf::RenderWindow* GetWindow() { return window; }
 
-    const unsigned int WINDOW_WIDTH = 1360;
-    const unsigned int WINDOW_HEIGHT = 820;
+    const unsigned short WINDOW_WIDTH = 1360;
+    const unsigned short WINDOW_HEIGHT = 820;
 
     void LoadTexture(std::string path);
     sf::Texture* GetTexture(std::string path);
@@ -38,7 +38,7 @@ public:
     void LoadFont(std::string path);
     sf::Font* GetFont(std::string path);
 
-    void DrawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
+    void DrawRect(short x, short y, short w, short h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
 
     void SetBackground(const std::string& path);
     void RenderBackground();

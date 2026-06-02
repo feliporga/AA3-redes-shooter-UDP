@@ -20,7 +20,7 @@ public:
     }
     virtual void Update() {
         //DESTRUCTION
-        for (int i = objects.size() - 1; i >= 0; i--) {
+        for (short i = objects.size() - 1; i >= 0; i--) {
             if (objects[i]->IsPendingDestroy()) {
                 delete objects[i];
                 objects.erase(objects.begin() + i); //esto es para borrar el objetos despues de borrar su puntero
@@ -36,9 +36,9 @@ public:
         for (Object* o : objects)
             o->Update();
 
-        for (int i = 0; i < objects.size(); i++)
+        for (short i = 0; i < objects.size(); i++)
         {
-            for (int j = i + 1; j < objects.size(); j++)
+            for (short j = i + 1; j < objects.size(); j++)
             {
                 if (objects[i]->GetRigidbody()->CheckCollision(objects[j]->GetRigidbody()))
                 {
