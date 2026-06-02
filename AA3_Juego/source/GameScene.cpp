@@ -27,7 +27,7 @@ GameScene::GameScene() : Scene() {
     hasServerTimeOffset = false;
     serverTimeOffset = 0;
 
-    // Inicializar balas
+    // Inicializar las balas
     for (int i = 0; i < MAX_BULLETS; i++) {
         bulletActive[i] = false;
     }
@@ -170,7 +170,7 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
     }
 
     // Dibujamos al rival unos milisegundos por detrás para tener dos estados
-    // entre los que interpolar y evitar teletransportes.
+    // Entre los que interpolar y evitar teletransportes.
     int renderTimestamp =
         (int)currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
 
@@ -234,13 +234,13 @@ void GameScene::Update() {
     // INPUTS:
 
     if (!NM.lastState.isGameOver) {
-        // MOVEMENT
+        // Movimiento
         short mask = INPUT_NONE;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) mask |= INPUT_LEFT;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) mask |= INPUT_RIGHT;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::T)) mask |= INPUT_TAUNT;
 
-        // JUMP
+        // Salto
         static bool prevJump = false;
         static bool prevOnGround = true;
 
@@ -278,7 +278,7 @@ void GameScene::Update() {
             ApplyLocalHorizontalPrediction(mask);
         }
 
-        // SHOUT (F)
+        // Shoot (F)
         static bool prevShoot = false;
         bool currentShoot = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::F);
         if (currentShoot && !prevShoot) {
@@ -369,7 +369,7 @@ void GameScene::Update() {
         }
     }
 
-    // hud de vidas y win/lose
+    // HUD de vidas y win/lose
     if (NM.lastState.isGameOver) {
         if (!NM.resultReported) {
             bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
