@@ -5,12 +5,13 @@
 #include <string>
 #include <map>
 
-// --- LIBRERÍAS DE LA THREAD POOL ---
+//LIBRERÍAS DE LA THREAD POOL
 #include <thread>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+
 
 #include "mysql_connection.h"
 #include <cppconn/driver.h>
