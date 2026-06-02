@@ -4,7 +4,9 @@
 #include <iostream>
 #include <optional>
 #include <map>
-#include "NetworkProtocol.h" // Asegúrate de tener este archivo copiado en esta solución
+#include <vector>
+#include "NetworkProtocol.h" 
+
 
 class Server {
 private:
@@ -16,6 +18,8 @@ private:
 
         unsigned int lastTimestamps[2];
         short playerInputs[2];
+
+        std::vector<unsigned int> processedCriticalPackets[2];
 
         S2C_StatePacket worldState;
         sf::Clock serverClock;

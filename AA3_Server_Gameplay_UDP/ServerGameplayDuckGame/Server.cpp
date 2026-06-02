@@ -2,6 +2,7 @@
 #include <cstring>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 
 Server::Server(unsigned short port) : port(port), isRunning(false) {
 }
@@ -15,6 +16,7 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.clientConnected[i] = false;
         match.lastTimestamps[i] = 0;
         match.playerInputs[i] = INPUT_NONE;
+        match.processedCriticalPackets[i].clear();
 
         match.worldState.players[i].id = i + 1;
         match.worldState.players[i].posX = 100 + (i * 400);
@@ -101,31 +103,49 @@ void Server::ProcessPackets() {
         // IDENTIFICACIÓN: BITMASK
         if (flags & CRITICAL_PACKET) {
             std::cout << "[UDP] Paquete CRITICO recibido (ID: " << in.packetID << "). Enviando ACK." << std::endl;
+
             S2C_AckPacket ack;
             ack.ackedPacketID = in.packetID;
             udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
 
+            short idx = in.playerID - 1;
 
-            if (in.inputMask & INPUT_SHOOT) {
-                short idx = in.playerID - 1;
-                // Bbala disponible?
-                for (int i = 0; i < MAX_BULLETS; i++) {
-                    if (!match.worldState.bullets[i].active) {
-                        match.worldState.bullets[i].active = true;
-                        match.worldState.bullets[i].ownerID = in.playerID;
-                        match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
+            if (idx >= 0 && idx < 2) {
+                bool alreadyProcessed =
+                    std::find(
+                        match.processedCriticalPackets[idx].begin(),
+                        match.processedCriticalPackets[idx].end(),
+                        in.packetID
+                    ) != match.processedCriticalPackets[idx].end();
 
-                        // direccion bala
-                        if (match.worldState.players[idx].facingRight) {
-                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
-                            match.worldState.bullets[i].velX = 15;
+                if (!alreadyProcessed) {
+                    match.processedCriticalPackets[idx].push_back(in.packetID);
+
+                    if (in.inputMask & INPUT_SHOOT) {
+                        // Bbala disponible?
+                        for (int i = 0; i < MAX_BULLETS; i++) {
+                            if (!match.worldState.bullets[i].active) {
+                                match.worldState.bullets[i].active = true;
+                                match.worldState.bullets[i].ownerID = in.playerID;
+                                match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
+
+                                // direccion bala
+                                if (match.worldState.players[idx].facingRight) {
+                                    match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
+                                    match.worldState.bullets[i].velX = 15;
+                                }
+                                else {
+                                    match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
+                                    match.worldState.bullets[i].velX = -15;
+                                }
+                                break;
+                            }
                         }
-                        else {
-                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
-                            match.worldState.bullets[i].velX = -15;
-                        }
-                        break;
                     }
+                }
+                else {
+                    std::cout << "[UDP] Paquete CRITICO duplicado ignorado (ID: "
+                        << in.packetID << ")." << std::endl;
                 }
             }
         }
