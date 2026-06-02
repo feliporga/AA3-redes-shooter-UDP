@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "InputManager.h"
+#include "Launcher.h" // pillamos el launcher
 
 #include <exception>
 #include <iostream>
@@ -7,6 +8,13 @@
 #define Input InputManager::Instance()
 
 int main() {
+    Launcher myLauncher;
+    if (!myLauncher.Run()) {
+        std::cout << "pulsa enter para salir" << std::endl;
+        std::cin.get();
+        return -1;
+    }
+
     Game game;
 
     srand((unsigned short)time(NULL));

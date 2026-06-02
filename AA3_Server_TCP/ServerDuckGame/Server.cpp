@@ -1,5 +1,4 @@
 #include "Server.h"
-#include "bcrypt.h"
 
 Server::Server(unsigned short port) : port(port), isRunning(false), driver(nullptr), con(nullptr), stopPool(false) {
     // arrancamos los 4 hilos trabajadores
@@ -318,7 +317,7 @@ void Server::SendRankingToClient(sf::TcpSocket* client) {
     try {
         std::string currentUser = loggedInUsers[client];
 
-        std::unique_lock<std::mutex> lock(dataMutex);
+        //std::unique_lock<std::mutex> lock(dataMutex);
         sql::Statement* stmt = con->createStatement();
         sql::ResultSet* res = stmt->executeQuery("SELECT userName, points, wins, losses FROM users ORDER BY points DESC, wins DESC LIMIT 10");
 
@@ -534,6 +533,9 @@ void Server::HandleMapCheck(sf::TcpSocket* client, short clientVersion) {
         std::cout << "[LAUNCHER] cliente desactualizado mandando mapa nuevo" << std::endl;
     }
     else {
+        sf::Packet res;
+        res << (short)PacketType::MapUpToDate;
+        client->send(res);
         std::cout << "[LAUNCHER] cliente tiene la version buena" << std::endl;
     }
 }

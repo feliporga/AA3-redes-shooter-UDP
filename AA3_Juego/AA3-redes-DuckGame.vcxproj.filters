@@ -25,6 +25,9 @@
     <ClCompile Include="source\MainMenu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="source\Launcher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\AABB.h">
@@ -112,6 +115,9 @@
       <Filter>Header FIles</Filter>
     </ClInclude>
     <ClInclude Include="source\MainMenu.h">
+      <Filter>Header FIles</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Launcher.h">
       <Filter>Header FIles</Filter>
     </ClInclude>
   </ItemGroup>

@@ -5,16 +5,15 @@
 #include <string>
 #include <optional> 
 #include <cstring>
-#include <fstream> // ¡Añadido para el Launcher!
+#include <fstream> // Launcher
 #include "NetworkProtocol.h"
 
-// --- MACROS Y DEFINES ---
 #ifndef NETWORK_MACROS
 #define NETWORK_MACROS
-#define SERVER_IP "127.0.0.1"
+#define SERVER_UDP_IP "127.0.0.1"
 #define SERVER_TCP_PORT 60000
 #define SERVER_UDP_PORT 60001
-#define SERVER_TCP_IP SERVER_IP
+#define SERVER_TCP_IP "127.0.0.1"
 #define NM NetworkManager::Instance()
 #endif
 
@@ -47,7 +46,7 @@ private:
     NetworkManager() {
         tcpSocket.setBlocking(false);
         udpSocket.setBlocking(false);
-        serverUdpIp = sf::IpAddress::resolve(SERVER_IP);
+        serverUdpIp = sf::IpAddress::resolve(SERVER_UDP_IP);
     }
 
 public:

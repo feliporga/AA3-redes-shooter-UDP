@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\GameScene.cpp" />
+    <ClCompile Include="source\Launcher.cpp" />
     <ClCompile Include="source\LoginScene.cpp" />
     <ClCompile Include="source\MainMenu.cpp" />
     <ClCompile Include="source\RankingScene.cpp" />
@@ -42,6 +43,7 @@
     <Image Include="resources\WalkMario.png" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\Launcher.h" />
     <ClInclude Include="source\GameScene.h" />
     <ClInclude Include="source\MainMenu.h" />
     <ClInclude Include="source\NetworkProtocol.h" />

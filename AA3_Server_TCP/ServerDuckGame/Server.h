@@ -19,6 +19,7 @@
 #include <cppconn/resultset.h>
 
 #include "NetworkProtocol.h"
+#include "bcrypt.h"
 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_TCP_PORT 60000
