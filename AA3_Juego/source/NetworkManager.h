@@ -42,7 +42,7 @@ private:
         unsigned int lastSendTime;
     };
     std::vector<PendingPacket> unackedPackets;
-    unsigned int nextPacketID = 1;
+    unsigned short nextPacketID = 1;
 
     NetworkManager() {
         tcpSocket.setBlocking(false);
@@ -59,7 +59,7 @@ public:
     }
 
     short myPlayerID = 0;
-    unsigned int currentMatchID = 0;
+    unsigned short currentMatchID = 0;
     bool isConnected = false;
 
     bool newRankingAvailable = false;
@@ -89,7 +89,7 @@ public:
     }
 
     void SendCheckMapVersion() {
-        int version = 0; // Por defecto asumimos que no hay versión
+        short version = 0; // Por defecto asumimos que no hay versión
         std::ifstream versionFile("resources/mapa_version.txt");
         if (versionFile.is_open()) {
             versionFile >> version;
@@ -135,12 +135,12 @@ public:
     void Listen() {
         sf::Packet packet;
         if (tcpSocket.receive(packet) == sf::Socket::Status::Done) {
-            short typeInt;
-            if (packet >> typeInt) {
-                PacketType type = static_cast<PacketType>(typeInt);
+            short typeShort;
+            if (packet >> typeShort) {
+                PacketType type = static_cast<PacketType>(typeShort);
 
                 if (type == PacketType::UpdateMap) {
-                    int newVersion;
+                    short newVersion;
                     std::string newMapData;
                     packet >> newVersion >> newMapData;
 
@@ -182,7 +182,7 @@ public:
                 }
                 else if (type == PacketType::GameStart) {
                     short pID;
-                    unsigned int matchID;
+                    unsigned short matchID;
                     std::string udpIP;
                     unsigned short udpPort;
 
@@ -217,7 +217,7 @@ public:
 
     // UDP
 
-    void SendUDPInput(short mask, unsigned int time, unsigned int movementID) {
+    void SendUDPInput(short mask, unsigned int time, unsigned short movementID) {
         if (!serverUdpIp.has_value()) return;
 
         C2S_InputPacket packet;

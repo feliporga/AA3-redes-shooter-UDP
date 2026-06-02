@@ -7,8 +7,8 @@
 
 // Valores utilizados para la predicción local y la interpolación del rival
 const float LOCAL_PREDICTION_SPEED = 5.0f;
-const unsigned int INTERPOLATION_DELAY = 100;
-const unsigned int MAX_REMOTE_SNAPSHOTS = 30;
+const unsigned short INTERPOLATION_DELAY = 100;
+const unsigned short MAX_REMOTE_SNAPSHOTS = 30;
 
 class TileObject : public Object {
 public:
@@ -28,7 +28,7 @@ GameScene::GameScene() : Scene() {
     serverTimeOffset = 0;
 
     // Inicializar las balas
-    for (int i = 0; i < MAX_BULLETS; i++) {
+    for (short i = 0; i < MAX_BULLETS; i++) {
         bulletActive[i] = false;
     }
 }
@@ -46,15 +46,15 @@ void GameScene::LoadMap() {
     if (!file.is_open()) return;
 
     std::string line;
-    int row = 0;
+    short row = 0;
 
     while (std::getline(file, line)) {
-        int col = 0;
+        short col = 0;
 
         // El mapa actual utiliza valores 0 y 1 separados por espacios
         for (std::size_t i = 0; i < line.size(); i++) {
             if (line[i] == '0' || line[i] == '1') {
-                int tileType = line[i] - '0';
+                short tileType = line[i] - '0';
 
                 if (tileType == 1) {
                     TileObject* tile = new TileObject(col * 32.0f, row * 32.0f);
@@ -262,7 +262,7 @@ void GameScene::Update() {
         prevJump = currentJump;
         prevOnGround = currentOnGround;
 
-        unsigned int movementID = nextMovementID++;
+        unsigned short movementID = nextMovementID++;
 
         NM.SendUDPInput(mask, currentTime, movementID);
 
@@ -351,7 +351,7 @@ void GameScene::Update() {
 
             hasInitialServerState = true;
 
-            for (int i = 0; i < MAX_BULLETS; i++) {
+            for (short i = 0; i < MAX_BULLETS; i++) {
                 bulletActive[i] = NM.lastState.bullets[i].active;
                 bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
             }
@@ -408,7 +408,7 @@ void GameScene::Render() {
     // bullet rendering
     sf::RenderWindow* window = RM->GetWindow();
     if (window) {
-        for (int i = 0; i < MAX_BULLETS; i++) {
+        for (short i = 0; i < MAX_BULLETS; i++) {
             if (bulletActive[i]) {
                 sf::RectangleShape rect(sf::Vector2f(10.f, 10.f));
                 rect.setFillColor(sf::Color::Yellow);
