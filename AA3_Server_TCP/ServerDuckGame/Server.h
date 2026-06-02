@@ -51,10 +51,11 @@ private:
 
     std::vector<sf::TcpSocket*> casualQueue;
     std::vector<CompPlayer> compQueue;
-
+    std::map<sf::TcpSocket*, bool> competitivePlayers;
+    std::map<sf::TcpSocket*, bool> reportedResults;
     // Matchmaking core functions
     void ProcessMatchmaking();
-    void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2);
+    void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
     void RemoveFromQueues(sf::TcpSocket* client);
 
     // Métodos de gestión interna

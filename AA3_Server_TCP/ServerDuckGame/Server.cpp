@@ -120,7 +120,43 @@ void Server::HandleClientPackets() {
                         std::cout << "[MATCHMAKING] Player canceled search." << std::endl;
                     }
                     else if (type == PacketType::ReportResult) {
-                        short winnerID;
+                        bool hasWon;
+                        packet >> hasWon;
+
+                        if (!competitivePlayers[client]) return;
+                        if (reportedResults[client]) return;
+
+                        reportedResults[client] = true;
+
+                        std::string username = loggedInUsers[client];
+
+                        try {
+                            sql::PreparedStatement* pstmt;
+
+                            if (hasWon) {
+                                pstmt = con->prepareStatement(
+                                    "UPDATE users "
+                                    "SET points = points + 25, wins = wins + 1 "
+                                    "WHERE userName = ?"
+                                );
+                            }
+                            else {
+                                pstmt = con->prepareStatement(
+                                    "UPDATE users "
+                                    "SET points = GREATEST(points - 25, 0), losses = losses + 1 "
+                                    "WHERE userName = ?"
+                                );
+                            }
+
+                            pstmt->setString(1, username);
+                            pstmt->executeUpdate();
+                            delete pstmt;
+                        }
+                        catch (sql::SQLException& e) {
+                            std::cout << "[DATABASE ERROR] Could not update ELO: "
+                                << e.what() << std::endl;
+                        }
+                       /* short winnerID;
                         packet >> winnerID;
 
                         std::string username = loggedInUsers[client];
@@ -137,7 +173,7 @@ void Server::HandleClientPackets() {
                             catch (sql::SQLException& e) {
                                 std::cout << "[DATABASE ERROR] Could not update ELO: " << e.what() << std::endl;
                             }
-                        }
+                        }*/
                     }
                     else if (type == PacketType::CheckMapVersion) {
                         int clientVersion; packet >> clientVersion;
@@ -178,7 +214,7 @@ void Server::HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName) 
                     sf::TcpSocket* p1 = activeRooms[i].players[0];
                     sf::TcpSocket* p2 = activeRooms[i].players[1];
 
-                    StartGameForPlayers(p1, p2);
+                    StartGameForPlayers(p1, p2, false);
 
                     activeRooms.erase(activeRooms.begin() + i);
                 }
@@ -367,7 +403,7 @@ void Server::ProcessMatchmaking() {
         casualQueue.erase(casualQueue.begin(), casualQueue.begin() + 2);
 
         std::cout << "[MATCHMAKING] Casual match found!" << std::endl;
-        StartGameForPlayers(p1, p2);
+        StartGameForPlayers(p1, p2, false);
     }
 
     if (compQueue.size() >= 2) {
@@ -383,7 +419,7 @@ void Server::ProcessMatchmaking() {
                     compQueue.erase(compQueue.begin() + i);
 
                     std::cout << "[MATCHMAKING] Competitive match found!" << std::endl;
-                    StartGameForPlayers(p1, p2);
+                    StartGameForPlayers(p1, p2, true);
                     return;
                 }
             }
@@ -391,7 +427,13 @@ void Server::ProcessMatchmaking() {
     }
 }
 
-void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2) {
+void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive) {
+    competitivePlayers[p1] = isCompetitive;
+    competitivePlayers[p2] = isCompetitive;
+
+    reportedResults[p1] = false;
+    reportedResults[p2] = false;
+
     unsigned int matchID = nextMatchID++;
 
     std::cout << "[MATCHMAKING] Handoff to UDP Game Server initializing... MatchID: " << matchID << std::endl;

@@ -371,6 +371,11 @@ void GameScene::Update() {
 
     // hud de vidas y win/lose
     if (NM.lastState.isGameOver) {
+        if (!NM.resultReported) {
+            bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
+            NM.SendReportResult(NM.lastState.winnerID, hasWon);
+            NM.resultReported = true;
+        }
         if (NM.lastState.winnerID == NM.myPlayerID) {
             statusText->SetText("¡VICTORIA! Has ganado la partida.");
             statusText->SetColor(sf::Color::Green);
