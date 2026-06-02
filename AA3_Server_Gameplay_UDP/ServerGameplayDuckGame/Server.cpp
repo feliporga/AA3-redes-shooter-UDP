@@ -15,6 +15,7 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.clientPorts[i] = 0;
         match.clientConnected[i] = false;
         match.lastTimestamps[i] = 0;
+        match.timeoutWarningShown[i] = false;
         match.playerInputs[i] = INPUT_NONE;
         match.processedCriticalPackets[i].clear();
 
@@ -71,7 +72,8 @@ void Server::Run() {
             timeSinceLastUpdate -= timePerTick;
             ProcessPackets();
 
-            for (auto& pair : matches) {
+            for (std::pair<const unsigned int, MatchData>& pair : matches) {
+                CheckTimeouts(pair.second);
                 UpdatePhysics(pair.second);
                 BroadcastState(pair.second);
             }
@@ -168,6 +170,8 @@ void Server::ProcessPackets() {
 
             short idx = in.playerID - 1;
             if (idx >= 0 && idx < 2) {
+                match.inactivityClock[idx].restart();
+                match.timeoutWarningShown[idx] = false;
                 if (!match.clientConnected[idx]) {
                     match.clientIPs[idx] = sender;
                     match.clientPorts[idx] = senderPort;
@@ -315,13 +319,50 @@ void Server::HandlePlayerDeath(MatchData& match, short playerIndex, short killer
 
 
 void Server::CleanupMatches() {
-    for (auto it = matches.begin(); it != matches.end(); ) {
+    for (std::map<unsigned int, MatchData>::iterator it = matches.begin(); it != matches.end(); ) {
         if (it->second.pendingDelete && it->second.endClock.getElapsedTime().asSeconds() > 5.0f) {
             std::cout << "[UDP] Eliminando partida finalizada. MatchID: " << it->first << std::endl;
             it = matches.erase(it);
         }
         else {
             ++it;
+        }
+    }
+}
+
+void Server::CheckTimeouts(MatchData& match) {
+    if (match.worldState.isGameOver) return;
+
+    // No comprobamos desconexiones hasta que ambos jugadores hayan entrado.
+    if (!match.clientConnected[0] || !match.clientConnected[1]) return;
+
+    for (short i = 0; i < 2; i++) {
+        float inactivitySeconds =
+            match.inactivityClock[i].getElapsedTime().asSeconds();
+
+        if (
+            inactivitySeconds > PLAYER_WARNING_SECONDS &&
+            !match.timeoutWarningShown[i]
+            ) {
+            match.timeoutWarningShown[i] = true;
+
+            std::cout << "[UDP] PING DEBUG: el jugador "<< match.worldState.players[i].id << " no responde. Esperando actividad... - "
+                << match.inactivityClock[i].getElapsedTime().asSeconds()<<"s restantes" << std::endl;
+        }
+
+        if (inactivitySeconds > PLAYER_TIMEOUT_SECONDS) {
+            short winnerIndex = (i == 0) ? 1 : 0;
+
+            match.worldState.isGameOver = true;
+            match.worldState.winnerID =
+                match.worldState.players[winnerIndex].id;
+
+            match.pendingDelete = true;
+            match.endClock.restart();
+
+            std::cout << "[UDP] TIMEOUT: jugador " << match.worldState.players[i].id << " desconectado. Ganador: jugador " << match.worldState.winnerID << std::endl;
+
+            return;
         }
     }
 }

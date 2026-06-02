@@ -7,7 +7,8 @@
 #include <vector>
 #include "NetworkProtocol.h" 
 
-
+#define PLAYER_TIMEOUT_SECONDS 5
+#define PLAYER_WARNING_SECONDS 2
 class Server {
 private:
     struct MatchData {
@@ -27,7 +28,9 @@ private:
         S2C_StatePacket worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
+        sf::Clock inactivityClock[2];
         bool pendingDelete;
+        bool timeoutWarningShown[2];
     };
 
     unsigned short port;
@@ -42,6 +45,7 @@ private:
     void BroadcastState(MatchData& match);
     void InitMatch(MatchData& match, unsigned int matchID);
     void CleanupMatches();
+    void CheckTimeouts(MatchData& match);
 
 public:
     Server(unsigned short port);
