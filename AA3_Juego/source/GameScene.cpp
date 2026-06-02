@@ -58,7 +58,7 @@ void GameScene::LoadMap() {
 }
 
 void GameScene::LoadPlayerAssets(short index, short playerID) {
-    std::string character = (playerID == 1) ? "Mario" : "Luigi";
+    std::string character = (playerID == NM.myPlayerID) ? "Mario" : "Luigi";
 
     std::string pathIdle = "resources/Idle" + character + ".png";
     std::string pathWalk = "resources/Walk" + character + ".png";
