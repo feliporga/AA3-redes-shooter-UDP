@@ -17,7 +17,7 @@ struct RankRowUI {
     TextObject* elo;
     TextObject* wins;
     TextObject* losses;
-    TextObject* indicator; // Texto para el "TU POSICION ->"
+    TextObject* indicator;
 };
 
 class RankingScene : public Scene {
