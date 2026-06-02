@@ -5,7 +5,7 @@
 #include <string>
 #include <map>
 
-// --- LIBRERï¿½AS DE LA THREAD POOL ---
+// --- LIBRERÍAS DE LA THREAD POOL ---
 #include <thread>
 #include <queue>
 #include <mutex>
@@ -37,10 +37,10 @@ private:
     std::vector<sf::TcpSocket*> clients;
     std::map<sf::TcpSocket*, std::string> loggedInUsers;
 
-    // OPTIMIZACIï¿½N: Pasado a short (limite 65,535 partidas, mï¿½s que suficiente)
+    // OPTIMIZACIÓN: Pasado a short (limite 65,535 partidas, más que suficiente)
     unsigned short nextMatchID = 1;
 
-    // Conexiï¿½n MySQL
+    // Conexión MySQL
     sql::Driver* driver;
     sql::Connection* con;
 
@@ -61,7 +61,6 @@ private:
     std::vector<CompPlayer> compQueue;
     std::map<sf::TcpSocket*, bool> competitivePlayers;
     std::map<sf::TcpSocket*, bool> reportedResults;
-    std::map<sf::TcpSocket*, std::string> opponentUsers;
 
     // --- VARIABLES DE LA THREAD POOL ---
     std::vector<std::thread> workers;
@@ -71,7 +70,7 @@ private:
     std::condition_variable condition;
     bool stopPool;
 
-    // --- Mï¿½TODOS DE LA THREAD POOL ---
+    // --- MÉTODOS DE LA THREAD POOL ---
     void ThreadPoolWorker();
     void EnqueueTask(std::function<void()> task);
 
@@ -80,7 +79,7 @@ private:
     void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
     void RemoveFromQueues(sf::TcpSocket* client);
 
-    // Mï¿½todos de gestiï¿½n interna
+    // Métodos de gestión interna
     bool ConnectDatabase();
     void DisconnectDatabase();
     bool CheckUserLogin(const std::string& user, const std::string& password);
