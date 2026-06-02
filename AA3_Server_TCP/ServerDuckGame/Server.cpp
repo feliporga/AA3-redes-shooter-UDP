@@ -123,39 +123,51 @@ void Server::HandleClientPackets() {
                         bool hasWon;
                         packet >> hasWon;
 
-                        if (!competitivePlayers[client]) return;
-                        if (reportedResults[client]) return;
+                        // El ganador actualiza el resultado completo.
+                        // El reporte del perdedor se ignora.
+
+                        //BLOQUE GENERADO POR IA
+                        if (!competitivePlayers[client] || !hasWon) {
+                            i++;
+                        }
+
+                        if (reportedResults[client]) {
+                            i++;
+                        }
+                        //--- HASTA AQUI ----
 
                         reportedResults[client] = true;
 
-                        std::string username = loggedInUsers[client];
+                        std::string winnerName = loggedInUsers[client];
+                        std::string loserName = opponentUsers[client];
 
                         try {
-                            sql::PreparedStatement* pstmt;
+                            sql::PreparedStatement* winnerStmt = con->prepareStatement(
+                                "UPDATE users "
+                                "SET points = points + 25, wins = wins + 1 "
+                                "WHERE userName = ?"
+                            );
+                            winnerStmt->setString(1, winnerName);
+                            winnerStmt->executeUpdate();
+                            delete winnerStmt;
 
-                            if (hasWon) {
-                                pstmt = con->prepareStatement(
-                                    "UPDATE users "
-                                    "SET points = points + 25, wins = wins + 1 "
-                                    "WHERE userName = ?"
-                                );
-                            }
-                            else {
-                                pstmt = con->prepareStatement(
-                                    "UPDATE users "
-                                    "SET points = GREATEST(points - 25, 0), losses = losses + 1 "
-                                    "WHERE userName = ?"
-                                );
-                            }
+                            sql::PreparedStatement* loserStmt = con->prepareStatement(
+                                "UPDATE users "
+                                "SET points = GREATEST(points - 25, 0), losses = losses + 1 "
+                                "WHERE userName = ?"
+                            );
+                            loserStmt->setString(1, loserName);
+                            loserStmt->executeUpdate();
+                            delete loserStmt;
 
-                            pstmt->setString(1, username);
-                            pstmt->executeUpdate();
-                            delete pstmt;
+                            std::cout << "[ELO] " << winnerName << " +25 | "
+                                << loserName << " -25" << std::endl;
                         }
                         catch (sql::SQLException& e) {
                             std::cout << "[DATABASE ERROR] Could not update ELO: "
                                 << e.what() << std::endl;
                         }
+                    
                        /* short winnerID;
                         packet >> winnerID;
 
@@ -433,6 +445,8 @@ void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCo
 
     reportedResults[p1] = false;
     reportedResults[p2] = false;
+    opponentUsers[p1] = loggedInUsers[p2];
+    opponentUsers[p2] = loggedInUsers[p1];
 
     unsigned int matchID = nextMatchID++;
 

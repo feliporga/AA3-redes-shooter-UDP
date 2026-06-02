@@ -53,6 +53,7 @@ private:
     std::vector<CompPlayer> compQueue;
     std::map<sf::TcpSocket*, bool> competitivePlayers;
     std::map<sf::TcpSocket*, bool> reportedResults;
+    std::map<sf::TcpSocket*, std::string> opponentUsers;
     // Matchmaking core functions
     void ProcessMatchmaking();
     void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
