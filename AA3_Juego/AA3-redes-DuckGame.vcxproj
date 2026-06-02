@@ -23,17 +23,23 @@
     <ClCompile Include="source\LoginScene.cpp" />
     <ClCompile Include="source\MainMenu.cpp" />
     <ClCompile Include="source\RankingScene.cpp" />
-    <ClCompile Include="source\PlayerPiece.cpp" />
     <ClCompile Include="source\Game.cpp" />
     <ClCompile Include="source\ImageRenderer.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\RenderManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="resources\IdleLuigi.png" />
+    <Image Include="resources\IdleMario.png" />
+    <Image Include="resources\JumpLuigi.png" />
+    <Image Include="resources\JumpMario.png" />
     <Image Include="resources\player1.png" />
     <Image Include="resources\player2.png" />
     <Image Include="resources\player3.png" />
     <Image Include="resources\player4.png" />
+    <Image Include="resources\tile.png" />
+    <Image Include="resources\WalkLuigi.png" />
+    <Image Include="resources\WalkMario.png" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\GameScene.h" />
@@ -42,7 +48,6 @@
     <ClInclude Include="source\NetworkManager.h" />
     <ClInclude Include="source\LoginScene.h" />
     <ClInclude Include="source\RankingScene.h" />
-    <ClInclude Include="source\PlayerPiece.h" />
     <ClInclude Include="source\AABB.h" />
     <ClInclude Include="source\Button.h" />
     <ClInclude Include="source\GameOverScene.h" />
@@ -66,6 +71,10 @@
     <ClInclude Include="source\Vector2.h" />
     <ClInclude Include="source\YouWonScene.h" />
     <ClInclude Include="source\TextField.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="resources\mapa.txt" />
+    <Text Include="resources\mapa_version.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
