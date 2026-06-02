@@ -21,7 +21,7 @@ Server::~Server() {
     }
 }
 
-// --- LÓGICA DEL HILO TRABAJADOR ---
+// --- Lï¿½GICA DEL HILO TRABAJADOR ---
 void Server::ThreadPoolWorker() {
     while (true) {
         std::function<void()> task;
@@ -36,7 +36,7 @@ void Server::ThreadPoolWorker() {
     }
 }
 
-// --- FUNCIÓN PARA METER TAREAS A LA COLA ---
+// --- FUNCIï¿½N PARA METER TAREAS A LA COLA ---
 void Server::EnqueueTask(std::function<void()> task) {
     {
         std::unique_lock<std::mutex> lock(queueMutex);
@@ -75,7 +75,7 @@ void Server::Run() {
     while (isRunning) {
         if (selector.wait(sf::milliseconds(10))) {
             if (selector.isReady(listener)) {
-                std::unique_lock<std::mutex> lock(dataMutex); // Bloqueo al añadir cliente
+                std::unique_lock<std::mutex> lock(dataMutex); // Bloqueo al aï¿½adir cliente
                 AcceptNewClient();
             }
             else {
@@ -103,7 +103,7 @@ void Server::AcceptNewClient() {
 }
 
 void Server::HandleClientPackets() {
-    std::unique_lock<std::mutex> lock(dataMutex); // Protegemos la iteración
+    std::unique_lock<std::mutex> lock(dataMutex); // Protegemos la iteraciï¿½n
 
     for (short i = 0; i < (short)clients.size(); ) {
         sf::TcpSocket* client = clients[i];
@@ -129,6 +129,53 @@ void Server::HandleClientPackets() {
                         }
                         if (!clientExists) return;
 
+                        // El ganador actualiza el resultado completo.
+                        // El reporte del perdedor se ignora.
+
+                        //BLOQUE GENERADO POR IA
+                        if (!competitivePlayers[client] || !hasWon) {
+                            i++;
+                        }
+
+                        if (reportedResults[client]) {
+                            i++;
+                        }
+                        //--- HASTA AQUI ----
+
+                        reportedResults[client] = true;
+
+                        std::string winnerName = loggedInUsers[client];
+                        std::string loserName = opponentUsers[client];
+
+                        try {
+                            sql::PreparedStatement* winnerStmt = con->prepareStatement(
+                                "UPDATE users "
+                                "SET points = points + 25, wins = wins + 1 "
+                                "WHERE userName = ?"
+                            );
+                            winnerStmt->setString(1, winnerName);
+                            winnerStmt->executeUpdate();
+                            delete winnerStmt;
+
+                            sql::PreparedStatement* loserStmt = con->prepareStatement(
+                                "UPDATE users "
+                                "SET points = GREATEST(points - 25, 0), losses = losses + 1 "
+                                "WHERE userName = ?"
+                            );
+                            loserStmt->setString(1, loserName);
+                            loserStmt->executeUpdate();
+                            delete loserStmt;
+
+                            std::cout << "[ELO] " << winnerName << " +25 | "
+                                << loserName << " -25" << std::endl;
+                        }
+                        catch (sql::SQLException& e) {
+                            std::cout << "[DATABASE ERROR] Could not update ELO: "
+                                << e.what() << std::endl;
+                        }
+                    
+                       /* short winnerID;
+                        packet >> winnerID;
                         if (type == PacketType::LoginRequest) {
                             std::string u, p; packet >> u >> p;
                             bool ok = CheckUserLogin(u, p);
@@ -169,7 +216,7 @@ void Server::HandleClientPackets() {
 
                             if (!username.empty()) {
                                 try {
-                                    // Bloqueamos la conexión MySQL para que no colisionen las queries
+                                    // Bloqueamos la conexiï¿½n MySQL para que no colisionen las queries
                                     std::unique_lock<std::mutex> dbLock(dataMutex);
                                     sql::PreparedStatement* pstmt;
 
@@ -191,7 +238,7 @@ void Server::HandleClientPackets() {
                             }
                         }
                         else {
-                            // Operaciones estándar bloqueadas por seguridad
+                            // Operaciones estï¿½ndar bloqueadas por seguridad
                             std::unique_lock<std::mutex> safeLock(dataMutex);
 
                             if (type == PacketType::CreateRoomRequest) {
@@ -475,6 +522,8 @@ void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCo
 
     reportedResults[p1] = false;
     reportedResults[p2] = false;
+    opponentUsers[p1] = loggedInUsers[p2];
+    opponentUsers[p2] = loggedInUsers[p1];
 
     unsigned short matchID = nextMatchID++; // OPTIMIZADO a short
 

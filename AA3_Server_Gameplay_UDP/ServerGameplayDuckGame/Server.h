@@ -7,7 +7,9 @@
 #include <vector>
 #include "NetworkProtocol.h" 
 
-// --- LIBRERÍAS DE LA THREAD POOL ---
+#define PLAYER_TIMEOUT_SECONDS 5
+#define PLAYER_WARNING_SECONDS 2
+// --- LIBRERï¿½AS DE LA THREAD POOL ---
 #include <thread>
 #include <queue>
 #include <mutex>
@@ -26,13 +28,15 @@ private:
 
         std::vector<unsigned short> processedCriticalPackets[2];
 
-        // Último input normal procesado de cada jugador para reconciliar en cliente
+        // ï¿½ltimo input normal procesado de cada jugador para reconciliar en cliente
         unsigned short lastProcessedMovementID[2];
 
         S2C_StatePacket worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
+        sf::Clock inactivityClock[2];
         bool pendingDelete;
+        bool timeoutWarningShown[2];
     };
 
     unsigned short port;
@@ -45,20 +49,21 @@ private:
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
     std::mutex queueMutex;
-    std::mutex dataMutex; // ¡NUEVO! Protege el mapa de partidas 'matches'
+    std::mutex dataMutex; // ï¿½NUEVO! Protege el mapa de partidas 'matches'
     std::condition_variable condition;
     bool stopPool;
 
-    // --- MÉTODOS DE LA THREAD POOL ---
+    // --- Mï¿½TODOS DE LA THREAD POOL ---
     void ThreadPoolWorker();
     void EnqueueTask(std::function<void()> task);
 
-    // Métodos divididos correctamente
+    // Mï¿½todos divididos correctamente
     void ProcessPackets();
     void UpdatePhysics(MatchData& match);
     void BroadcastState(MatchData& match);
     void InitMatch(MatchData& match, unsigned short matchID);
     void CleanupMatches();
+    void CheckTimeouts(MatchData& match);
 
 public:
     Server(unsigned short port);
