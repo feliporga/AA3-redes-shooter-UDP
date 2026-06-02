@@ -30,7 +30,6 @@ private:
     Button* btnMuteSFX;
     TextObject* txtMuteSFX;
 
-    //buscador
     bool isSearching;
 
 public:

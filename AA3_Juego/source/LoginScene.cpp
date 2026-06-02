@@ -26,7 +26,7 @@ void LoginScene::OnEnter() {
     NM.SendCheckMapVersion();
 
     // INICIALIZACIÓN DE OBJETOS UI
-    titleText = new TextObject("DUCKGAME SHOOTER"); //Actualizado al nuevo juego
+    titleText = new TextObject("DUCKGAME SHOOTER"); // ¡Actualizado al nuevo juego!
     titleText->GetTransform()->position = Vector2(winW / 2 - 190.0f, winH / 2 - 200);
     titleText->SetColor(sf::Color::Yellow);
     SPAWN.SpawnObject(titleText);
@@ -91,7 +91,7 @@ void LoginScene::Update() {
         float btnW = BTN_WIDTH;
         float btnH = BTN_HEIGHT;
 
-        // Login boton de hitbox y network request
+        // Login button hitbox and network request
         float loginY = winH / 2 + 60;
         if (mouseX >= btnX && mouseX <= btnX + btnW &&
             mouseY >= loginY && mouseY <= loginY + btnH)
@@ -108,7 +108,7 @@ void LoginScene::Update() {
             }
         }
 
-        // Registro boton hitbox y network request
+        // Register button hitbox and network request
         float regY = winH / 2 + 120;
         if (mouseX >= btnX && mouseX <= btnX + btnW &&
             mouseY >= regY && mouseY <= regY + btnH)

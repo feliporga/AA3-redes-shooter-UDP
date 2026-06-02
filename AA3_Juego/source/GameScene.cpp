@@ -7,8 +7,8 @@
 
 // Valores utilizados para la predicción local y la interpolación del rival
 const float LOCAL_PREDICTION_SPEED = 5.0f;
-const unsigned short INTERPOLATION_DELAY = 100;
-const unsigned short MAX_REMOTE_SNAPSHOTS = 30;
+const unsigned int INTERPOLATION_DELAY = 100;
+const unsigned int MAX_REMOTE_SNAPSHOTS = 30;
 
 class TileObject : public Object {
 public:
@@ -27,8 +27,8 @@ GameScene::GameScene() : Scene() {
     hasServerTimeOffset = false;
     serverTimeOffset = 0;
 
-    // Inicializar las balas
-    for (short i = 0; i < MAX_BULLETS; i++) {
+    // Inicializar balas
+    for (int i = 0; i < MAX_BULLETS; i++) {
         bulletActive[i] = false;
     }
 }
@@ -46,15 +46,15 @@ void GameScene::LoadMap() {
     if (!file.is_open()) return;
 
     std::string line;
-    short row = 0;
+    int row = 0;
 
     while (std::getline(file, line)) {
-        short col = 0;
+        int col = 0;
 
         // El mapa actual utiliza valores 0 y 1 separados por espacios
         for (std::size_t i = 0; i < line.size(); i++) {
             if (line[i] == '0' || line[i] == '1') {
-                short tileType = line[i] - '0';
+                int tileType = line[i] - '0';
 
                 if (tileType == 1) {
                     TileObject* tile = new TileObject(col * 32.0f, row * 32.0f);
@@ -170,7 +170,7 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
     }
 
     // Dibujamos al rival unos milisegundos por detrás para tener dos estados
-    // Entre los que interpolar y evitar teletransportes.
+    // entre los que interpolar y evitar teletransportes.
     int renderTimestamp =
         (int)currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
 
@@ -234,13 +234,13 @@ void GameScene::Update() {
     // INPUTS:
 
     if (!NM.lastState.isGameOver) {
-        // Movimiento
+        // MOVEMENT
         short mask = INPUT_NONE;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) mask |= INPUT_LEFT;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) mask |= INPUT_RIGHT;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::T)) mask |= INPUT_TAUNT;
 
-        // Salto
+        // JUMP
         static bool prevJump = false;
         static bool prevOnGround = true;
 
@@ -262,7 +262,7 @@ void GameScene::Update() {
         prevJump = currentJump;
         prevOnGround = currentOnGround;
 
-        unsigned short movementID = nextMovementID++;
+        unsigned int movementID = nextMovementID++;
 
         NM.SendUDPInput(mask, currentTime, movementID);
 
@@ -278,7 +278,7 @@ void GameScene::Update() {
             ApplyLocalHorizontalPrediction(mask);
         }
 
-        // Shoot (F)
+        // SHOUT (F)
         static bool prevShoot = false;
         bool currentShoot = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::F);
         if (currentShoot && !prevShoot) {
@@ -351,7 +351,7 @@ void GameScene::Update() {
 
             hasInitialServerState = true;
 
-            for (short i = 0; i < MAX_BULLETS; i++) {
+            for (int i = 0; i < MAX_BULLETS; i++) {
                 bulletActive[i] = NM.lastState.bullets[i].active;
                 bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
             }
@@ -369,7 +369,7 @@ void GameScene::Update() {
         }
     }
 
-    // HUD de vidas y win/lose
+    // hud de vidas y win/lose
     if (NM.lastState.isGameOver) {
         if (!NM.resultReported) {
             bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
@@ -408,7 +408,7 @@ void GameScene::Render() {
     // bullet rendering
     sf::RenderWindow* window = RM->GetWindow();
     if (window) {
-        for (short i = 0; i < MAX_BULLETS; i++) {
+        for (int i = 0; i < MAX_BULLETS; i++) {
             if (bulletActive[i]) {
                 sf::RectangleShape rect(sf::Vector2f(10.f, 10.f));
                 rect.setFillColor(sf::Color::Yellow);

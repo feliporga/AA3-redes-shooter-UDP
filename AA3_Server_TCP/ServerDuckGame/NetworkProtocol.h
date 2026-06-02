@@ -47,6 +47,7 @@ enum class PacketType : short {
     SearchCasualRequest,
     SearchCompetitiveRequest,
     CancelSearchRequest,
+    // --- NUEVOS PAQUETES DE LAUNCHER ---
     CheckMapVersion,
     UpdateMap
 };
@@ -65,22 +66,19 @@ enum InputFlags : short {
 // Paquete de Input (Cliente -> Servidor UDP)
 struct C2S_InputPacket {
     uint8_t flags = NORMAL_PACKET;
-    unsigned short packetID = 0;
+    unsigned int packetID = 0;
     short type = (short)PacketType::GameMove;
     short playerID;
     unsigned int timestamp;
     short inputMask;
-    unsigned short matchID = 0;
-
-    // Identifica cada input normal para poder hacer predicción y reconciliación
-    unsigned short movementID = 0;
+    unsigned int matchID = 0;
 };
 
 // Paquete de Confirmación (Servidor -> Cliente UDP)
 struct S2C_AckPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Ack;
-    unsigned short ackedPacketID;
+    unsigned int ackedPacketID;
 };
 
 struct PlayerState {
@@ -96,9 +94,6 @@ struct PlayerState {
 
     short hp;
     short lives;
-
-    //ultimo move player
-    unsigned short lastProcessedMovementID = 0;
 };
 
 
@@ -118,6 +113,6 @@ struct S2C_StatePacket {
     BulletState bullets[MAX_BULLETS];
     bool isGameOver = false;
     short winnerID = 0;
-    unsigned short matchID = 0;
+    unsigned int matchID = 0;
 };
 #pragma pack(pop)

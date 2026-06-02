@@ -8,7 +8,7 @@
 
 bool MainMenu::isMusicMuted = false;
 bool MainMenu::isSfxMuted = false;
-bool MainMenu::isMenuMusicPlaying = false; // Inicializamos en falso
+bool MainMenu::isMenuMusicPlaying = false; // Inicializamos a falso
 
 MainMenu::MainMenu() : Scene() {
     winW = (float)RM->WINDOW_WIDTH;
