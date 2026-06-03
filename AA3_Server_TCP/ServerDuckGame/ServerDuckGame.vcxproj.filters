@@ -39,4 +39,7 @@
       <UniqueIdentifier>{068f4bfd-c80d-4b8e-8354-f6ce80255773}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="mapa_servidor.txt" />
+  </ItemGroup>
 </Project>

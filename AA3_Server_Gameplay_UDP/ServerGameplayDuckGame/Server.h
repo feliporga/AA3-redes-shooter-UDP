@@ -12,6 +12,11 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <cstring>
+#include <chrono>
+#include <algorithm>
+#include <fstream>
+#include <sstream>
 
 // Tiempo maximo sin saber nada de un jugador antes de hacerlo perder
 #define PLAYER_TIMEOUT_SECONDS 5
@@ -72,6 +77,13 @@ private:
     void InitMatch(MatchData& match, unsigned int matchID);
     void CleanupMatches();
     void CheckTimeouts(MatchData& match);
+
+    std::vector<std::vector<short>> levelMap;
+    short mapRows = 0;
+    short mapCols = 0;
+
+    void LoadMapCollisions();
+    bool CheckTileCollision(short x, short y, short w, short h);
 
     // Registra una irregularidad avisa a los clientes y termina la partida si llega a tres
     void RegisterIrregularity(MatchData& match, short playerIndex, const std::string& reason);

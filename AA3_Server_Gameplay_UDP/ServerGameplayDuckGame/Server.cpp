@@ -1,10 +1,8 @@
 #include "Server.h"
-#include <cstring>
-#include <thread>
-#include <chrono>
-#include <algorithm>
+
 
 Server::Server(unsigned short port) : port(port), isRunning(false), stopPool(false) {
+    LoadMapCollisions();
     // Se crean varios hilos para repartir el trabajo
     for (short i = 0; i < 4; ++i) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
@@ -342,7 +340,7 @@ void Server::ProcessPackets() {
     }
 }
 
-// Se mueven jugadores y balas y se revisan golpes
+// colision balas/mapa/jugadores/muerte
 void Server::UpdatePhysics(MatchData& match) {
     if (match.worldState.isGameOver) return;
 
@@ -360,9 +358,31 @@ void Server::UpdatePhysics(MatchData& match) {
         if ((mask & INPUT_JUMP) && p.onGround) { p.velY = -15; p.onGround = false; }
 
         p.posX += p.velX;
-        p.posY += p.velY;
+        if (CheckTileCollision(p.posX, p.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
+			p.posX -= p.velX; // choque horizontal
+            p.velX = 0;
+        }
 
-        if (p.posY >= 500) { p.posY = 500; p.velY = 0; p.onGround = true; }
+        // si estamos cayendo onGround siempre false
+        p.onGround = false;
+
+        p.posY += p.velY;
+        if (CheckTileCollision(p.posX, p.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
+			p.posY -= p.velY; // choque vertical
+
+            // Si caemos y onGround es true
+            if (p.velY > 0) {
+                p.onGround = true;
+            }
+            p.velY = 0; // frenamos
+        }
+
+		// Si el jugador cae al vacio muere
+
+        if (p.posY > 1000) {
+            short rivalID = (i == 0) ? match.worldState.players[1].id : match.worldState.players[0].id;
+            HandlePlayerDeath(match, i, rivalID);
+        }
     }
 
     // Se mueven las balas activas
@@ -378,6 +398,69 @@ void Server::UpdatePhysics(MatchData& match) {
     }
 
     CheckCollisions(match);
+}
+
+// lee el txt
+void Server::LoadMapCollisions() {
+    levelMap.clear();
+    mapRows = 0;
+    mapCols = 0;
+
+    std::ifstream file("mapa_servidor.txt");
+
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            if (line.empty()) continue;
+
+            std::vector<short> row;
+            std::stringstream ss(line);
+            short tile;
+
+            while (ss >> tile) {
+                row.push_back(tile);
+            }
+
+            if (!row.empty()) {
+                levelMap.push_back(row);
+            }
+        }
+        file.close();
+
+        mapRows = (short)levelMap.size();
+        if (mapRows > 0) {
+            mapCols = (short)levelMap[0].size();
+        }
+        std::cout << "[UDP] mapa cargado automaticamente. Dimensiones: " << mapCols << "x" << mapRows << std::endl;
+    }
+    else {
+        std::cout << "[UDP ERROR] no se encontro mapa_servidor.txt" << std::endl;
+    }
+}
+
+bool Server::CheckTileCollision(short x, short y, short w, short h) {
+    if (mapRows == 0 || mapCols == 0) return false;
+
+    short TILE_SIZE = 32;
+    short leftTile = x / TILE_SIZE;
+    short rightTile = (x + w - 1) / TILE_SIZE;
+    short topTile = y / TILE_SIZE;
+    short bottomTile = (y + h - 1) / TILE_SIZE;
+
+    // topes de seguridad
+    if (leftTile < 0) leftTile = 0;
+    if (rightTile >= mapCols) rightTile = mapCols - 1;
+    if (topTile < 0) topTile = 0;
+    if (bottomTile >= mapRows) bottomTile = mapRows - 1;
+
+    for (short i = topTile; i <= bottomTile; i++) {
+        for (short j = leftTile; j <= rightTile; j++) {
+            if (levelMap[i][j] == 1) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // El estado actual se envia a cada cliente
