@@ -528,20 +528,26 @@ void Server::RemoveFromQueues(sf::TcpSocket* client) {
     }
 }
 
-// Se comprueba la version del mapa que tiene el cliente
+// se comprueba la version del mapa que tiene el cliente
 void Server::HandleMapCheck(sf::TcpSocket* client, short clientVersion) {
+    // versiond del mapa
     short officialServerVersion = 1;
 
     if (clientVersion < officialServerVersion) {
-        std::string mapData =
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-            "0 0 0 0 0 0 0 0 1 1 1 1 0 0 0 0 0 0 0 0\n"
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-            "0 0 1 1 1 0 0 0 0 0 0 0 0 0 1 1 1 0 0 0\n"
-            "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-            "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1\n";
+        std::string mapData = "";
+        std::ifstream file("mapa_servidor.txt");
+
+        // leemos archivo mapa y guardamos en string
+        if (file.is_open()) {
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            mapData = buffer.str();
+            file.close();
+        }
+        else {
+            std::cout << "[TCP ERROR] no se encuentra el archivo mapa_servidor.txt" << std::endl;
+            return;
+        }
 
         sf::Packet res;
         res << (short)PacketType::UpdateMap << officialServerVersion << mapData;

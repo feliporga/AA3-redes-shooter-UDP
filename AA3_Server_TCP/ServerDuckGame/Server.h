@@ -4,13 +4,13 @@
 #include <vector>
 #include <string>
 #include <map>
-
-// Estas librerias permiten usar hilos y datos compartidos
 #include <thread>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <fstream>
+#include <sstream>
 
 #include "mysql_connection.h"
 #include <cppconn/driver.h>
