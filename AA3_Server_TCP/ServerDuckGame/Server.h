@@ -93,8 +93,7 @@ private:
 	// Funciones para procesar los paquetes recibidos
     void AcceptNewClient();
     void HandleClientPackets();
-    void HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName);
-    void HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName);
+    //void HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName);
     void SendRankingToClient(sf::TcpSocket* client);
 
     // La version del mapa se guarda como short

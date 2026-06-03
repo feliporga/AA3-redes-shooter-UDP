@@ -250,32 +250,32 @@ void Server::HandleClientPackets() {
     }
 }
 
-void Server::HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName) {
-    short numRooms = (short)activeRooms.size();
-    for (short i = 0; i < numRooms; i++) {
-        if (activeRooms[i].name == roomName) {
-            if (activeRooms[i].players.size() < 2) {
-                activeRooms[i].players.push_back(client);
-
-                sf::Packet res;
-                res << (short)PacketType::RoomSuccess;
-                client->send(res);
-
-                if (activeRooms[i].players.size() == 2) {
-                    std::cout << "[MATCH] partida lista mandando al udp" << std::endl;
-                    sf::TcpSocket* p1 = activeRooms[i].players[0];
-                    sf::TcpSocket* p2 = activeRooms[i].players[1];
-                    StartGameForPlayers(p1, p2, false);
-                    activeRooms.erase(activeRooms.begin() + i);
-                }
-                return;
-            }
-        }
-    }
-    sf::Packet err;
-    err << (short)PacketType::RoomError;
-    client->send(err);
-}
+//void Server::HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName) {
+//    short numRooms = (short)activeRooms.size();
+//    for (short i = 0; i < numRooms; i++) {
+//        if (activeRooms[i].name == roomName) {
+//            if (activeRooms[i].players.size() < 2) {
+//                activeRooms[i].players.push_back(client);
+//
+//                sf::Packet res;
+//                res << (short)PacketType::RoomSuccess;
+//                client->send(res);
+//
+//                if (activeRooms[i].players.size() == 2) {
+//                    std::cout << "[MATCH] partida lista mandando al udp" << std::endl;
+//                    sf::TcpSocket* p1 = activeRooms[i].players[0];
+//                    sf::TcpSocket* p2 = activeRooms[i].players[1];
+//                    StartGameForPlayers(p1, p2, false);
+//                    activeRooms.erase(activeRooms.begin() + i);
+//                }
+//                return;
+//            }
+//        }
+//    }
+//    sf::Packet err;
+//    err << (short)PacketType::RoomError;
+//    client->send(err);
+//}
 
 void Server::Stop() {
     isRunning = false;
@@ -290,29 +290,6 @@ void Server::Stop() {
     clients.clear();
     DisconnectDatabase();
     std::cout << "[SERVER] apagado" << std::endl;
-}
-
-void Server::HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName) {
-    short numRooms = (short)activeRooms.size();
-    for (short i = 0; i < numRooms; i++) {
-        if (activeRooms[i].name == roomName) {
-            sf::Packet response;
-            response << (short)PacketType::RoomError;
-            client->send(response);
-            return;
-        }
-    }
-
-    Room newRoom;
-    newRoom.name = roomName;
-    newRoom.players.push_back(client);
-    activeRooms.push_back(newRoom);
-
-    std::cout << "[SERVER] sala creada" << std::endl;
-
-    sf::Packet response;
-    response << (short)PacketType::RoomSuccess;
-    client->send(response);
 }
 
 // El ranking se carga desde MySQL y se envia al cliente
