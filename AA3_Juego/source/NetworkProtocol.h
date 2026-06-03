@@ -11,8 +11,6 @@
 // Numero maximo de irregularidades antes de dar la partida por perdida
 #define MAX_IRREGULARITIES 3
 
-
-
 //stats player 
 
 const short INITIAL_LIVES = 3;
@@ -36,8 +34,6 @@ enum class PacketType : short {
     RegisterFailed,
     RankingRequest,
     RankingResponse,
-    CreateRoomRequest,
-    JoinRoomRequest,
     RoomSuccess,
     RoomError,
     MatchCreatedNotification,

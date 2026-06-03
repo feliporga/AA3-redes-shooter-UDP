@@ -431,7 +431,7 @@ void Server::LoadMapCollisions() {
         if (mapRows > 0) {
             mapCols = (short)levelMap[0].size();
         }
-        std::cout << "[UDP] mapa cargado automaticamente. Dimensiones: " << mapCols << "x" << mapRows << std::endl;
+        std::cout << "[UDP] mapa cargado. Dimensiones: " << mapCols << "x" << mapRows << std::endl;
     }
     else {
         std::cout << "[UDP ERROR] no se encontro mapa_servidor.txt" << std::endl;

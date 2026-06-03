@@ -113,18 +113,6 @@ public:
         tcpSocket.send(p);
     }
 
-    void SendCreateRoom(const std::string& roomName) {
-        sf::Packet p;
-        p << (short)PacketType::CreateRoomRequest << roomName;
-        tcpSocket.send(p);
-    }
-
-    void SendJoinRoom(const std::string& roomName) {
-        sf::Packet p;
-        p << (short)PacketType::JoinRoomRequest << roomName;
-        tcpSocket.send(p);
-    }
-
     void RequestRanking() {
         sf::Packet p;
         p << (short)PacketType::RankingRequest;

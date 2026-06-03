@@ -210,15 +210,7 @@ void Server::HandleClientPackets() {
                             // Las listas y salas se protegen mientras cambian
                             std::unique_lock<std::mutex> safeLock(dataMutex);
 
-                            if (type == PacketType::CreateRoomRequest) {
-                                std::string rName; packet >> rName;
-                                HandleCreateRoom(client, rName);
-                            }
-                            else if (type == PacketType::JoinRoomRequest) {
-                                std::string rName; packet >> rName;
-                                HandleJoinRoom(client, rName);
-                            }
-                            else if (type == PacketType::RankingRequest) {
+                            if (type == PacketType::RankingRequest) {
                                 SendRankingToClient(client);
                             }
                             else if (type == PacketType::SearchCasualRequest) {

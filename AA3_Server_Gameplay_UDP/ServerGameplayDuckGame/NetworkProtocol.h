@@ -11,20 +11,18 @@
 // Numero maximo de irregularidades antes de dar la partida por perdida
 #define MAX_IRREGULARITIES 3
 
-
-
 //stats player 
 
-const  short INITIAL_LIVES = 3;
-const  short INITIAL_HP = 5;
-const  short BULLET_DAMAGE = 1;
-const  short RESPAWN_POS_X = 400;
-const  short RESPAWN_POS_Y = 100;
-const  short MAP_FLOOR_Y = 500;
-const  short PLAYER_HITBOX_W = 32;
-const  short PLAYER_HITBOX_H = 32;
-const  short BULLET_HITBOX_W = 10;
-const  short BULLET_HITBOX_H = 10;
+const short INITIAL_LIVES = 3;
+const short INITIAL_HP = 5;
+const short BULLET_DAMAGE = 1;
+const short RESPAWN_POS_X = 400;
+const short RESPAWN_POS_Y = 100;
+const short MAP_FLOOR_Y = 500;
+const short PLAYER_HITBOX_W = 32;
+const short PLAYER_HITBOX_H = 32;
+const short BULLET_HITBOX_W = 10;
+const short BULLET_HITBOX_H = 10;
 
 // Tipo de paquete optimizado a short
 enum class PacketType : short {
@@ -36,8 +34,6 @@ enum class PacketType : short {
     RegisterFailed,
     RankingRequest,
     RankingResponse,
-    CreateRoomRequest,
-    JoinRoomRequest,
     RoomSuccess,
     RoomError,
     MatchCreatedNotification,
