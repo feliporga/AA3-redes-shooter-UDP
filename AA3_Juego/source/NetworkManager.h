@@ -207,10 +207,7 @@ public:
         }
     }
     // Esta funcion envia el resultado al servidor TCP
-    void SendReportResult(short winnerPlayerID, bool hasWon) {
-       /* sf::Packet p;
-        p << (short)PacketType::ReportResult << winnerPlayerID;
-        tcpSocket.send(p);*/
+    void SendReportResult(bool hasWon) {
         sf::Packet p;
         p << (short)PacketType::ReportResult << hasWon;
         tcpSocket.send(p);

@@ -416,7 +416,7 @@ void GameScene::Update() {
         if (!NM.resultReported) {
             // El resultado se envia una sola vez al servidor TCP
             bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
-            NM.SendReportResult(NM.lastState.winnerID, hasWon);
+            NM.SendReportResult(hasWon);
             NM.resultReported = true;
 
         }
