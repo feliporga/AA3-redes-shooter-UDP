@@ -15,7 +15,7 @@
 #define SERVER_UDP_PORT 60001
 #define SERVER_TCP_IP "127.0.0.1"
 #define NM NetworkManager::Instance()
-#endif
+
 
 struct PlayerRanking {
     short pos;
@@ -89,7 +89,7 @@ public:
     }
 
     void SendCheckMapVersion() {
-        short version = 0; // Por defecto asumimos que no hay versión
+        short version = 0; // Por defecto asumimos que no hay versiï¿½n
         std::ifstream versionFile("resources/mapa_version.txt");
         if (versionFile.is_open()) {
             versionFile >> version;
@@ -151,7 +151,7 @@ public:
                         mapFile.close();
                     }
 
-                    // Actualizamos el txt de la versión local
+                    // Actualizamos el txt de la versiï¿½n local
                     std::ofstream versionFile("resources/mapa_version.txt");
                     if (versionFile.is_open()) {
                         versionFile << newVersion;
@@ -247,7 +247,7 @@ public:
         packet.inputMask = mask;
         packet.matchID = currentMatchID;
 
-        // Los disparos usan packetID para ACK, no forman parte de la reconciliación de movimiento
+        // Los disparos usan packetID para ACK, no forman parte de la reconciliaciï¿½n de movimiento
         packet.movementID = 0;
 
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
@@ -282,11 +282,11 @@ public:
                 for (size_t i = 0; i < unackedPackets.size(); ) {
                     if (unackedPackets[i].packet.packetID == ack.ackedPacketID) {
                         std::cout << "[CLIENTE] ACK recibido (ID: " << ack.ackedPacketID << "). Borrando de la cola." << std::endl;
-                        // Borramos usando el iterador begin() más el índice actual
+                        // Borramos usando el iterador begin() mï¿½s el ï¿½ndice actual
                         unackedPackets.erase(unackedPackets.begin() + i);
                     }
                     else {
-                        // Solo avanzamos el índice si NO hemos borrado nada
+                        // Solo avanzamos el ï¿½ndice si NO hemos borrado nada
                         i++;
                     }
                 }
