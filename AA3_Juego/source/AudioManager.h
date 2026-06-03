@@ -27,9 +27,9 @@ private:
 
     ~AudioManager()
     {
-        for (auto* channel : _channels) delete channel;
-        for (auto const& [name, buffer] : _clips) delete buffer;
-        for (auto const& [name, music] : _songs) delete music;
+        for (sf::Sound* channel : _channels) delete channel;
+        for (const std::pair<const std::string, sf::SoundBuffer*>& clip : _clips) delete clip.second;
+        for (const std::pair<const std::string, sf::Music*>& song : _songs) delete song.second;
         _channels.clear();
         _clips.clear();
         _songs.clear();
@@ -77,7 +77,7 @@ public:
     {
         if (_muted || _clips.find(name) == _clips.end()) return;
 
-        for (auto* channel : _channels) {
+        for (sf::Sound* channel : _channels) {
             if (channel->getStatus() == sf::Sound::Status::Stopped) {
                 channel->setBuffer(*_clips[name]);
                 channel->setLooping(repetitions == -1);
@@ -126,15 +126,15 @@ public:
     inline void SetMusicVolume(float volume)
     {
         _musicVolume = volume;
-        for (auto const& [songName, music] : _songs) {
-            music->setVolume(_musicVolume);
+        for (const std::pair<const std::string, sf::Music*>& song : _songs) {
+            song.second->setVolume(_musicVolume);
         }
     }
 
     inline void SetSFXVolume(float volume)
     {
         _sfxVolume = volume;
-        for (auto* channel : _channels) {
+        for (sf::Sound* channel : _channels) {
             channel->setVolume(_sfxVolume);
         }
     }
@@ -154,11 +154,11 @@ public:
 
     inline void StopAudio()
     {
-        for (auto* channel : _channels) {
+        for (sf::Sound* channel : _channels) {
             channel->stop();
         }
-        for (auto const& [songName, music] : _songs) {
-            music->stop();
+        for (const std::pair<const std::string, sf::Music*>& song : _songs) {
+            song.second->stop();
         }
     }
 };

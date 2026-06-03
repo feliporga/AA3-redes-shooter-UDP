@@ -82,13 +82,13 @@ sf::Font* RenderManager::GetFont(std::string path)
 
 RenderManager::~RenderManager()
 {
-    for (auto const& [key, val] : textures) {
-        delete val;
+    for (const std::pair<const std::string, sf::Texture*>& texture : textures) {
+        delete texture.second;
     }
     textures.clear();
 
-    for (auto const& [key, val] : fonts) {
-        delete val;
+    for (const std::pair<const std::string, sf::Font*>& font : fonts) {
+        delete font.second;
     }
     fonts.clear();
 

@@ -26,7 +26,7 @@ public:
 
     bool Listen() {
         textBuffer.clear();
-        for (auto& kv : keyReference) {
+        for (std::pair<const sf::Keyboard::Key, KeyState>& kv : keyReference) {
             if (kv.second == DOWN) kv.second = HOLD;
             else if (kv.second == UP) kv.second = RELEASED;
         }
@@ -39,22 +39,22 @@ public:
             while (const std::optional event = RM->GetWindow()->pollEvent()) {
                 if (event->is<sf::Event::Closed>()) return true;
 
-                if (const auto* textEntered = event->getIf<sf::Event::TextEntered>()) {
+                if (const sf::Event::TextEntered* textEntered = event->getIf<sf::Event::TextEntered>()) {
                     if (textEntered->unicode < 128) {
                         textBuffer += static_cast<char>(textEntered->unicode);
                     }
                 }
 
-                else if (const auto* mouseBtn = event->getIf<sf::Event::MouseButtonPressed>()) {
+                else if (const sf::Event::MouseButtonPressed* mouseBtn = event->getIf<sf::Event::MouseButtonPressed>()) {
                     if (mouseBtn->button == sf::Mouse::Button::Left) leftClick = true;
                 }
-                else if (const auto* mouseBtnRel = event->getIf<sf::Event::MouseButtonReleased>()) {
+                else if (const sf::Event::MouseButtonReleased* mouseBtnRel = event->getIf<sf::Event::MouseButtonReleased>()) {
                     if (mouseBtnRel->button == sf::Mouse::Button::Left) leftClick = false;
                 }
-                else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                else if (const sf::Event::KeyPressed* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
                     if (keyReference[keyPressed->code] != HOLD) keyReference[keyPressed->code] = DOWN;
                 }
-                else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>()) {
+                else if (const sf::Event::KeyReleased* keyReleased = event->getIf<sf::Event::KeyReleased>()) {
                     keyReference[keyReleased->code] = UP;
                 }
             }

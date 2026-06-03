@@ -114,7 +114,7 @@ void Server::Run() {
 
             // Las partidas se protegen mientras se actualizan fisicas y estados
             std::unique_lock<std::mutex> lock(dataMutex);
-            for (auto& pair : matches) {
+            for (std::pair<const unsigned int, MatchData>& pair : matches) {
                 // Se comprueba si alguien se ha desconectado antes de seguir la partida
                 CheckTimeouts(pair.second);
                 UpdatePhysics(pair.second);

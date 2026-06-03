@@ -125,7 +125,7 @@ void Server::HandleClientPackets() {
                         bool clientExists = false;
                         {
                             std::unique_lock<std::mutex> safeLock(dataMutex);
-                            for (auto* c : clients) {
+                            for (sf::TcpSocket* c : clients) {
                                 if (c == client) clientExists = true;
                             }
                         }
@@ -518,11 +518,11 @@ void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCo
 
 // El cliente se elimina de las colas si cancela o se desconecta
 void Server::RemoveFromQueues(sf::TcpSocket* client) {
-    for (auto it = casualQueue.begin(); it != casualQueue.end(); ) {
+    for (std::vector<sf::TcpSocket*>::iterator it = casualQueue.begin(); it != casualQueue.end(); ) {
         if (*it == client) it = casualQueue.erase(it);
         else ++it;
     }
-    for (auto it = compQueue.begin(); it != compQueue.end(); ) {
+    for (std::vector<CompPlayer>::iterator it = compQueue.begin(); it != compQueue.end(); ) {
         if (it->socket == client) it = compQueue.erase(it);
         else ++it;
     }

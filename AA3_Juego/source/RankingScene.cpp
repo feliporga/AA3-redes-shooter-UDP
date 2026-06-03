@@ -116,7 +116,7 @@ void RankingScene::Update() {
         NM.newRankingAvailable = false;
 
         // Limpiamos todos los textos por si acaso
-        for (auto& row : tableRows) {
+        for (RankRowUI& row : tableRows) {
             row.pos->SetText("");
             row.name->SetText("");
             row.elo->SetText("");
@@ -129,8 +129,8 @@ void RankingScene::Update() {
 
         // Rellenamos las columnas por separado
         for (size_t i = 0; i < NM.lastRanking.size() && i < 11; i++) {
-            auto& rank = NM.lastRanking[i];
-            auto& row = tableRows[i];
+            PlayerRanking& rank = NM.lastRanking[i];
+            RankRowUI& row = tableRows[i];
 
             row.pos->SetText(std::to_string(rank.pos));
             row.name->SetText(rank.name);
