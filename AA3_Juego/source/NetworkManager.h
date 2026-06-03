@@ -8,8 +8,7 @@
 #include <fstream> // Launcher
 #include "NetworkProtocol.h"
 
-#ifndef NETWORK_MACROS
-#define NETWORK_MACROS
+
 #define SERVER_UDP_IP "127.0.0.1"
 #define SERVER_TCP_PORT 60000
 #define SERVER_UDP_PORT 60001
