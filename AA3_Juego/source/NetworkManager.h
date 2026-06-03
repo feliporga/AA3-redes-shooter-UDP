@@ -8,14 +8,12 @@
 #include <fstream> // Launcher
 #include "NetworkProtocol.h"
 
-#ifndef NETWORK_MACROS
-#define NETWORK_MACROS
 #define SERVER_UDP_IP "77.230.37.161"
 #define SERVER_TCP_PORT 60000
 #define SERVER_UDP_PORT 60001
 #define SERVER_TCP_IP "77.230.37.161"
 #define NM NetworkManager::Instance()
-#endif
+
 
 struct PlayerRanking {
     short pos;
