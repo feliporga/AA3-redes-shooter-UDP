@@ -76,7 +76,7 @@ void RankingScene::OnEnter() {
         RankRowUI row;
         float currentY = startY + (i * spacing);
 
-        // Fila 11 separada (Tú posición)
+        // Fila 11 separada del resto (Posicion del cliente)
         if (i == 10) currentY += 30.0f;
 
         row.pos = new TextObject("");

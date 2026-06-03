@@ -1,6 +1,6 @@
 #include "Game.h"
 #include "InputManager.h"
-#include "Launcher.h" // pillamos el launcher
+#include "Launcher.h" // incluimos el launcher
 
 #include <exception>
 #include <iostream>

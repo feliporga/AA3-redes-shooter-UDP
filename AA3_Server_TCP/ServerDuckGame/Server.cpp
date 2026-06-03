@@ -1,7 +1,7 @@
 #include "Server.h"
 
 Server::Server(unsigned short port) : port(port), isRunning(false), driver(nullptr), con(nullptr), stopPool(false) {
-    // arrancamos los 4 hilos trabajadores
+    // Se crean hilos para procesar paquetes sin parar el servidor
     for (short i = 0; i < 4; ++i) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
     }
@@ -9,7 +9,7 @@ Server::Server(unsigned short port) : port(port), isRunning(false), driver(nullp
 
 Server::~Server() {
     Stop();
-    // avisamos a los hilos de que chapamos el server
+    // Se avisa a los hilos antes de cerrar el servidor
     {
         std::unique_lock<std::mutex> lock(queueMutex);
         stopPool = true;
@@ -20,7 +20,7 @@ Server::~Server() {
     }
 }
 
-// bucle infinito de los hilos esperando faena
+// Cada hilo espera hasta que haya una tarea disponible
 void Server::ThreadPoolWorker() {
     while (true) {
         std::function<void()> task;
@@ -35,7 +35,7 @@ void Server::ThreadPoolWorker() {
     }
 }
 
-// metemos la tarea en la cola y despertamos a un hilo
+// Se añade la tarea a la cola y se despierta un hilo libre
 void Server::EnqueueTask(std::function<void()> task) {
     {
         std::unique_lock<std::mutex> lock(queueMutex);
@@ -44,6 +44,7 @@ void Server::EnqueueTask(std::function<void()> task) {
     condition.notify_one();
 }
 
+// Se abre la conexion con la base de datos de login y ranking
 bool Server::ConnectDatabase() {
     try {
         driver = get_driver_instance();
@@ -59,6 +60,7 @@ bool Server::ConnectDatabase() {
     }
 }
 
+// El bucle principal TCP acepta clientes y revisa el matchmaking
 void Server::Run() {
     if (!ConnectDatabase()) return;
 
@@ -88,6 +90,7 @@ void Server::Run() {
     }
 }
 
+// El cliente nuevo queda aceptado y listo para recibir paquetes
 void Server::AcceptNewClient() {
     sf::TcpSocket* newClient = new sf::TcpSocket();
     if (listener.accept(*newClient) == sf::Socket::Status::Done) {
@@ -101,6 +104,7 @@ void Server::AcceptNewClient() {
     }
 }
 
+// Los mensajes TCP se leen y se procesan segun su tipo
 void Server::HandleClientPackets() {
     std::unique_lock<std::mutex> lock(dataMutex);
     for (short i = 0; i < (short)clients.size(); ) {
@@ -111,13 +115,13 @@ void Server::HandleClientPackets() {
             sf::Socket::Status status = client->receive(packet);
 
             if (status == sf::Socket::Status::Done) {
-                // metemos el paquete a la cola para que lo procese un hilo
+                // El paquete pasa a un hilo para no bloquear el servidor
                 EnqueueTask([this, client, packet]() mutable {
                     short typeInt;
                     if (packet >> typeInt) {
                         PacketType type = static_cast<PacketType>(typeInt);
 
-                        // miramos si el cliente se ha desconectado de golpe
+                        // Se comprueba que el cliente siga conectado antes de responder
                         bool clientExists = false;
                         {
                             std::unique_lock<std::mutex> safeLock(dataMutex);
@@ -129,7 +133,7 @@ void Server::HandleClientPackets() {
 
                         if (type == PacketType::LoginRequest) {
                             std::string u, p; packet >> u >> p;
-                            // comprobamos login
+                            // Usuario y contraseña se revisan en la base de datos
                             bool ok = CheckUserLogin(u, p);
 
                             std::unique_lock<std::mutex> safeLock(dataMutex);
@@ -154,16 +158,20 @@ void Server::HandleClientPackets() {
                             client->send(res);
                         }
                         else if (type == PacketType::ReportResult) {
+                            // El resultado llega desde el cliente
                             bool hasWon;
                             packet >> hasWon;
 
+                            // Los nombres se guardan para actualizar luego la base de datos
                             std::string winnerName;
                             std::string loserName;
 
-                            // leemos rapido para no bloquear
+                            // Los datos compartidos se leen y el bloqueo se suelta pronto
                             {
                                 std::unique_lock<std::mutex> safeLock(dataMutex);
+                                // Solo cuenta el mensaje del ganador
                                 if (!competitivePlayers[client] || !hasWon) return;
+                                // Si el resultado ya esta contado no suma ni resta otra vez
                                 if (reportedResults[client]) return;
                                 reportedResults[client] = true;
 
@@ -175,6 +183,7 @@ void Server::HandleClientPackets() {
                                 try {
                                     std::unique_lock<std::mutex> dbLock(dataMutex);
 
+                                    // El ganador suma puntos y una victoria
                                     sql::PreparedStatement* winnerStmt = con->prepareStatement(
                                         "UPDATE users SET points = points + 25, wins = wins + 1 WHERE userName = ?"
                                     );
@@ -182,6 +191,7 @@ void Server::HandleClientPackets() {
                                     winnerStmt->executeUpdate();
                                     delete winnerStmt;
 
+                                    // El perdedor pierde puntos y suma una derrota
                                     sql::PreparedStatement* loserStmt = con->prepareStatement(
                                         "UPDATE users SET points = GREATEST(points - 25, 0), losses = losses + 1 WHERE userName = ?"
                                     );
@@ -197,7 +207,7 @@ void Server::HandleClientPackets() {
                             }
                         }
                         else {
-                            // bloqueamos el resto de cosas comunes
+                            // Las listas y salas se protegen mientras cambian
                             std::unique_lock<std::mutex> safeLock(dataMutex);
 
                             if (type == PacketType::CreateRoomRequest) {
@@ -313,6 +323,7 @@ void Server::HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName
     client->send(response);
 }
 
+// El ranking se carga desde MySQL y se envia al cliente
 void Server::SendRankingToClient(sf::TcpSocket* client) {
     try {
         std::string currentUser = loggedInUsers[client];
@@ -376,7 +387,7 @@ void Server::SendRankingToClient(sf::TcpSocket* client) {
     }
 }
 
-// hacemos el bcrypt fuera del candado para que no de tirones
+// La comprobacion de contraseña se hace fuera del bloqueo para no frenar al servidor.
 bool Server::CheckUserLogin(const std::string& user, const std::string& password) {
     std::string hashFromDB;
     try {
@@ -447,6 +458,7 @@ void Server::DisconnectDatabase() {
     }
 }
 
+// Los jugadores se emparejan desde las colas cuando hay pareja
 void Server::ProcessMatchmaking() {
     while (casualQueue.size() >= 2) {
         sf::TcpSocket* p1 = casualQueue[0];
@@ -477,11 +489,13 @@ void Server::ProcessMatchmaking() {
 }
 
 void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive) {
+    // Se guarda si esta partida cuenta para ranking
     competitivePlayers[p1] = isCompetitive;
     competitivePlayers[p2] = isCompetitive;
 
     reportedResults[p1] = false;
     reportedResults[p2] = false;
+    // Se guarda el rival para poder cambiar los puntos de los dos
     opponentUsers[p1] = loggedInUsers[p2];
     opponentUsers[p2] = loggedInUsers[p1];
 
@@ -502,6 +516,7 @@ void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCo
     }
 }
 
+// El cliente se elimina de las colas si cancela o se desconecta
 void Server::RemoveFromQueues(sf::TcpSocket* client) {
     for (auto it = casualQueue.begin(); it != casualQueue.end(); ) {
         if (*it == client) it = casualQueue.erase(it);
@@ -513,6 +528,7 @@ void Server::RemoveFromQueues(sf::TcpSocket* client) {
     }
 }
 
+// Se comprueba la version del mapa que tiene el cliente
 void Server::HandleMapCheck(sf::TcpSocket* client, short clientVersion) {
     short officialServerVersion = 1;
 

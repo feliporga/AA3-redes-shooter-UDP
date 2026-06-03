@@ -36,6 +36,7 @@ class GameScene : public Scene {
 private:
     PlayerModel playerModels[2];
     sf::Clock gameClock;
+    // Este reloj controla la vuelta al menu despues del resultado
     sf::Clock returnToMenuClock;
     bool returnToMenuTimerStarted;
     unsigned int lastServerTimestamp;

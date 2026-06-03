@@ -5,7 +5,7 @@
 #include <algorithm>
 
 Server::Server(unsigned short port) : port(port), isRunning(false), stopPool(false) {
-    // arrancamos los 4 trabajadores
+    // Se crean varios hilos para repartir el trabajo
     for (short i = 0; i < 4; ++i) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
     }
@@ -13,7 +13,7 @@ Server::Server(unsigned short port) : port(port), isRunning(false), stopPool(fal
 
 Server::~Server() {
     Stop();
-    // paramos el pool limpio
+    // Se avisa a los hilos antes de cerrar el servidor
     {
         std::unique_lock<std::mutex> lock(queueMutex);
         stopPool = true;
@@ -24,7 +24,7 @@ Server::~Server() {
     }
 }
 
-// bucle de los currantes esperando faena
+// Cada hilo espera hasta que haya una tarea disponible
 void Server::ThreadPoolWorker() {
     while (true) {
         std::function<void()> task;
@@ -47,6 +47,7 @@ void Server::EnqueueTask(std::function<void()> task) {
     condition.notify_one();
 }
 
+// Se prepara una partida nueva con jugadores vida balas y relojes limpios
 void Server::InitMatch(MatchData& match, unsigned int matchID) {
     for (short i = 0; i < 2; i++) {
         match.clientIPs[i].reset();
@@ -57,7 +58,7 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.playerInputs[i] = INPUT_NONE;
         match.processedCriticalPackets[i].clear();
 
-        // iniciamos a cero para la reconciliacion
+        // El jugador empieza sin movimientos confirmados
         match.lastProcessedMovementID[i] = 0;
 
         match.worldState.players[i].id = i + 1;
@@ -79,7 +80,7 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
     match.worldState.winnerID = 0;
     match.worldState.matchID = matchID;
 
-    // apagamos balas
+    // La partida empieza sin balas activas
     for (short i = 0; i < MAX_BULLETS; i++) {
         match.worldState.bullets[i].active = false;
     }
@@ -89,6 +90,7 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
     match.pendingDelete = false;
 }
 
+// El bucle principal UDP lee paquetes actualiza partidas y envia estados
 void Server::Run() {
     if (udpSocket.bind(port) != sf::Socket::Status::Done) {
         std::cout << "[UDP ERROR] fallo al abrir puerto " << port << std::endl;
@@ -107,12 +109,13 @@ void Server::Run() {
         while (timeSinceLastUpdate > timePerTick) {
             timeSinceLastUpdate -= timePerTick;
 
-            // pilla de red a todo trapo
+            // Se leen los paquetes UDP que estaban pendientes
             ProcessPackets();
 
-            // bloqueamos para que los hilos no pisen las fisicas
+            // Las partidas se protegen mientras se actualizan fisicas y estados
             std::unique_lock<std::mutex> lock(dataMutex);
             for (auto& pair : matches) {
+                // Se comprueba si alguien se ha desconectado antes de seguir la partida
                 CheckTimeouts(pair.second);
                 UpdatePhysics(pair.second);
                 BroadcastState(pair.second);
@@ -124,6 +127,7 @@ void Server::Run() {
     }
 }
 
+// Los paquetes UDP recibidos actualizan su partida
 void Server::ProcessPackets() {
     char buffer[1024];
     std::size_t received;
@@ -140,7 +144,7 @@ void Server::ProcessPackets() {
 
         if (in.matchID == 0) continue;
 
-        // le tiramos el curro a la pool
+        // El paquete pasa a un hilo para no frenar la recepcion UDP
         EnqueueTask([this, in, flags, sender, senderPort]() {
 
             std::unique_lock<std::mutex> lock(dataMutex);
@@ -152,7 +156,7 @@ void Server::ProcessPackets() {
 
             MatchData& match = matches[in.matchID];
 
-            // miramos bitmask critico
+            // Los paquetes importantes se confirman con ACK para no repetirlos
             if (flags & CRITICAL_PACKET) {
                 S2C_AckPacket ack;
                 ack.ackedPacketID = in.packetID;
@@ -172,7 +176,7 @@ void Server::ProcessPackets() {
                         match.processedCriticalPackets[idx].push_back(in.packetID);
 
                         if (in.inputMask & INPUT_SHOOT) {
-                            // buscar bala libre
+                            // Se busca un hueco libre para crear la bala
                             for (short i = 0; i < MAX_BULLETS; i++) {
                                 if (!match.worldState.bullets[i].active) {
                                     match.worldState.bullets[i].active = true;
@@ -205,6 +209,7 @@ void Server::ProcessPackets() {
             else if (in.type == (short)PacketType::GameMove) {
                 short idx = in.playerID - 1;
                 if (idx >= 0 && idx < 2) {
+                    // Un paquete recibido del jugador indica que sigue conectado
                     match.inactivityClock[idx].restart();
                     match.timeoutWarningShown[idx] = false;
 
@@ -232,6 +237,7 @@ void Server::ProcessPackets() {
     }
 }
 
+// Se mueven jugadores y balas y se revisan golpes
 void Server::UpdatePhysics(MatchData& match) {
     if (match.worldState.isGameOver) return;
 
@@ -254,12 +260,12 @@ void Server::UpdatePhysics(MatchData& match) {
         if (p.posY >= 500) { p.posY = 500; p.velY = 0; p.onGround = true; }
     }
 
-    // mover balas
+    // Se mueven las balas activas
     for (short i = 0; i < MAX_BULLETS; i++) {
         if (match.worldState.bullets[i].active) {
             match.worldState.bullets[i].posX += match.worldState.bullets[i].velX;
 
-            // nos cargamos la bala si se va del mapa
+            // La bala se elimina si sale demasiado lejos del mapa
             if (match.worldState.bullets[i].posX < -100 || match.worldState.bullets[i].posX > 2000) {
                 match.worldState.bullets[i].active = false;
             }
@@ -269,6 +275,7 @@ void Server::UpdatePhysics(MatchData& match) {
     CheckCollisions(match);
 }
 
+// El estado actual se envia a cada cliente
 void Server::BroadcastState(MatchData& match) {
     match.worldState.timestamp = match.serverClock.getElapsedTime().asMilliseconds();
 
@@ -294,7 +301,7 @@ void Server::CheckCollisions(MatchData& match) {
                     short pX = match.worldState.players[p].posX;
                     short pY = match.worldState.players[p].posY;
 
-                    // caja de colision aabb
+                    // Se comprueba si la bala impacta contra el jugador
                     bool collisionX = (pX < bX + BULLET_HITBOX_W) && (pX + PLAYER_HITBOX_W > bX);
                     bool collisionY = (pY < bY + BULLET_HITBOX_H) && (pY + PLAYER_HITBOX_H > bY);
 
@@ -313,6 +320,7 @@ void Server::CheckCollisions(MatchData& match) {
     }
 }
 
+// Se restan vidas y la partida acaba si llegan a cero
 void Server::HandlePlayerDeath(MatchData& match, short playerIndex, short killerID) {
     match.worldState.players[playerIndex].lives -= 1;
 
@@ -333,8 +341,8 @@ void Server::HandlePlayerDeath(MatchData& match, short playerIndex, short killer
 }
 
 void Server::CleanupMatches() {
-    for (auto it = matches.begin(); it != matches.end(); ) {
-        // borramos la sala al de un rato
+    for (std::map<unsigned int, MatchData>::iterator it = matches.begin(); it != matches.end(); ) {
+        // Se espera un poco antes de borrar la partida
         if (it->second.pendingDelete && it->second.endClock.getElapsedTime().asSeconds() > 5.0f) {
             std::cout << "[UDP] limpieza de la partida " << it->first << std::endl;
             it = matches.erase(it);
@@ -346,19 +354,22 @@ void Server::CleanupMatches() {
 }
 
 void Server::CheckTimeouts(MatchData& match) {
+    // Si la partida ya acabo no hace falta mirar desconexiones
     if (match.worldState.isGameOver) return;
 
-    // pasamos si no han entrado los dos
+    // Las desconexiones se comprueban cuando ya estan los dos jugadores
     if (!match.clientConnected[0] || !match.clientConnected[1]) return;
 
     for (short i = 0; i < 2; i++) {
         float inactivitySeconds = match.inactivityClock[i].getElapsedTime().asSeconds();
 
+        // Sale un aviso por consola antes de echar al jugador
         if (inactivitySeconds > PLAYER_WARNING_SECONDS && !match.timeoutWarningShown[i]) {
             match.timeoutWarningShown[i] = true;
             std::cout << "[UDP] jugador " << match.worldState.players[i].id << " afk avisando" << std::endl;
         }
 
+        // Si el timeout se cumple el jugador pierde y gana el rival
         if (inactivitySeconds > PLAYER_TIMEOUT_SECONDS) {
             short winnerIndex = (i == 0) ? 1 : 0;
 

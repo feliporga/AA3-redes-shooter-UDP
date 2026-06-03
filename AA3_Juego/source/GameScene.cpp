@@ -5,8 +5,9 @@
 #include "SceneManager.h"
 #include <iostream>
 #include <fstream>
+// El resultado se queda unos segundos en pantalla antes de volver al menu
 #define RETURN_TO_MENU_DELAY_SECONDS 3
-// Valores utilizados para la predicción local y la interpolación del rival
+// Estos valores controlan la prediccion local y el movimiento suave del rival
 const float LOCAL_PREDICTION_SPEED = 5.0f;
 const unsigned short INTERPOLATION_DELAY = 100;
 const unsigned short MAX_REMOTE_SNAPSHOTS = 30;
@@ -110,12 +111,12 @@ void GameScene::ApplyLocalHorizontalPrediction(short inputMask) {
 void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
 
-    // BACK:
-    // Volvemos siempre a la posición oficial que ha calculado el servidor.
+    // Se usa la posicion oficial que llega del servidor
+    // La posicion local vuelve a lo que ha calculado el servidor
     playerModels[localIndex].transform.position =
         Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
 
-    // Eliminamos los inputs que el servidor ya ha incluido en su posición oficial.
+    // Se eliminan los inputs que el servidor ya ha usado
     for (std::size_t i = 0; i < pendingMovements.size(); ) {
         if (pendingMovements[i].movementID <= serverPlayer.lastProcessedMovementID) {
             pendingMovements.erase(pendingMovements.begin() + i);
@@ -125,7 +126,7 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         }
     }
 
-    // Reaplicamos únicamente los inputs posteriores que aún no ha confirmado el servidor.
+    // Se vuelven a aplicar los inputs que el servidor aun no ha confirmado
     for (std::size_t i = 0; i < pendingMovements.size(); i++) {
         ApplyLocalHorizontalPrediction(pendingMovements[i].inputMask);
     }
@@ -138,7 +139,7 @@ void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int 
 
     bool inserted = false;
 
-    // Guardamos los estados del rival ordenados para que los paquetes UDP desordenados
+    // Los estados del rival se guardan ordenados aunque los paquetes UDP lleguen desordenados
     // no provoquen que el personaje vuelva atrás en pantalla.
     for (std::vector<RemoteSnapshot>::iterator it = remoteSnapshots.begin(); it != remoteSnapshots.end(); ++it) {
         if (it->timestamp == newSnapshot.timestamp) {
@@ -171,8 +172,8 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
         hasServerTimeOffset = true;
     }
 
-    // Dibujamos al rival unos milisegundos por detrás para tener dos estados
-    // entre los que interpolar y evitar teletransportes.
+    // El rival se dibuja con un pequeño retraso para poder suavizar el movimiento
+    // entre los que interpolar y evitar teletransportes
     int renderTimestamp =
         currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
 
@@ -210,6 +211,7 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
 }
 
 void GameScene::OnEnter() {
+    // El temporizador se prepara al entrar en una partida
     returnToMenuTimerStarted = false;
     lastServerTimestamp = 0;
     hasInitialServerState = false;
@@ -235,7 +237,7 @@ void GameScene::Update() {
     Scene::Update();
     unsigned int currentTime = gameClock.getElapsedTime().asMilliseconds();
 
-    // INPUTS:
+    // Se leen las teclas del jugador
 
     if (!NM.lastState.isGameOver) {
         // MOVEMENT
@@ -270,9 +272,9 @@ void GameScene::Update() {
 
         NM.SendUDPInput(mask, currentTime, movementID);
 
-        // PREDICCIÓN LOCAL:
-        // El jugador propio responde al movimiento horizontal sin esperar la respuesta del servidor.
-        // El input queda almacenado hasta que el servidor confirme que ya lo ha procesado.
+        // Se aplica prediccion local
+        // El jugador se mueve en local sin esperar al servidor
+        // El input se guarda hasta que el servidor lo confirme
         if (hasInitialServerState && NM.myPlayerID != 0) {
             PendingMovement newMovement;
             newMovement.movementID = movementID;
@@ -291,11 +293,11 @@ void GameScene::Update() {
         }
         prevShoot = currentShoot;
     }
-    // PROCESAR RED
+    // Se procesan los paquetes de red
     NM.RetryUnackedPackets(currentTime);
     NM.ListenUDP();
 
-    // ACTUALIZAR TRANSFORMS CON DATOS DEL SERVIDOR
+    // La escena se actualiza con los datos que manda el servidor
     if (NM.newStateReceived) {
         if (NM.lastState.timestamp >= lastServerTimestamp) {
             lastServerTimestamp = NM.lastState.timestamp;
@@ -321,15 +323,15 @@ void GameScene::Update() {
                     m.transform.position = Vector2((float)s.posX, (float)s.posY);
                 }
                 else if (isLocalPlayer) {
-                    // RECONCILIACIÓN:
-                    // El servidor devuelve su posición oficial y el último movementID procesado.
-                    // El cliente vuelve a ese punto y reaplica los movimientos aún pendientes.
+                    // Se corrige la posicion local con la posicion del servidor
+                    // El servidor devuelve la posicion oficial y el ultimo movementID que ha usado
+                    // El cliente vuelve a esa posicion y reaplica los movimientos pendientes
                     ReconcileLocalPlayer(s);
                 }
 
                 if (!isLocalPlayer) {
-                    // INTERPOLACIÓN:
-                    // El rival se guarda en un buffer ordenado y se mostrará suavizado.
+                    // Se suaviza el movimiento del rival
+                    // El rival se guarda ordenado para que se vea mas suave
                     AddRemoteSnapshot(s, NM.lastState.timestamp);
                 }
 
@@ -363,8 +365,8 @@ void GameScene::Update() {
         NM.newStateReceived = false;
     }
 
-    // INTERPOLACIÓN DEL RIVAL:
-    // El rival se renderiza entre estados almacenados, no directamente en la última posición recibida.
+    // Se suaviza el movimiento del rival del rival
+    // El rival se dibuja entre estados guardados en vez de saltar a la ultima posicion
     InterpolateRemotePlayer(currentTime);
 
     for (short i = 0; i < 2; i++) {
@@ -376,6 +378,7 @@ void GameScene::Update() {
     // hud de vidas y win/lose
     if (NM.lastState.isGameOver) {
         if (!NM.resultReported) {
+            // El resultado se envia una sola vez al servidor TCP
             bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
             NM.SendReportResult(NM.lastState.winnerID, hasWon);
             NM.resultReported = true;
@@ -383,6 +386,7 @@ void GameScene::Update() {
         }
 
         if (!returnToMenuTimerStarted) {
+            // La espera empieza cuando acaba la partida
             returnToMenuTimerStarted = true;
             returnToMenuClock.restart();
         }
@@ -396,6 +400,7 @@ void GameScene::Update() {
             statusText->SetText("¡DERROTA! Te has quedado sin vidas.");
             statusText->SetColor(sf::Color::Red);
         }
+        // La cuenta atras evita volver al menu de golpe
         float remainingTime = RETURN_TO_MENU_DELAY_SECONDS - returnToMenuClock.getElapsedTime().asSeconds();
 
         if (remainingTime < 0.0f) {
@@ -412,6 +417,7 @@ void GameScene::Update() {
         }
 
         if (returnToMenuClock.getElapsedTime().asSeconds() >= RETURN_TO_MENU_DELAY_SECONDS) {
+            // Al terminar la espera se vuelve al menu
             SM.SetNextScene("MainMenu");
         }
     }
@@ -435,7 +441,7 @@ void GameScene::Render() {
         }
     }
 
-    // bullet rendering
+    // Se dibujan las balas activas
     sf::RenderWindow* window = RM->GetWindow();
     if (window) {
         for (short i = 0; i < MAX_BULLETS; i++) {

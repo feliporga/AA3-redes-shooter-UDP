@@ -5,7 +5,7 @@
 #include <string>
 #include <map>
 
-// librerias para usar los hilos
+// Estas librerias permiten usar hilos y datos compartidos
 #include <thread>
 #include <queue>
 #include <mutex>
@@ -38,21 +38,21 @@ private:
     std::vector<sf::TcpSocket*> clients;
     std::map<sf::TcpSocket*, std::string> loggedInUsers;
 
-    // usamos short para ahorrar memoria
+    // Aqui se guardan los datos basicos del servidor
     unsigned short nextMatchID = 1;
 
-    // conexion de la base de datos
+    // Aqui se guarda la conexion con MySQL
     sql::Driver* driver;
     sql::Connection* con;
 
-    // guardamos los jugadores de cada sala
+    // Cada sala guarda sus jugadores
     struct Room {
         std::string name;
         std::vector<sf::TcpSocket*> players;
     };
     std::vector<Room> activeRooms;
 
-    // colas para buscar partida
+    // Colas usadas para buscar partida
     struct CompPlayer {
         sf::TcpSocket* socket;
         short elo;
@@ -60,28 +60,31 @@ private:
 
     std::vector<sf::TcpSocket*> casualQueue;
     std::vector<CompPlayer> compQueue;
+    // Marca si el jugador esta en una partida de ranking o no
     std::map<sf::TcpSocket*, bool> competitivePlayers;
+    // Evita que la misma partida cuente dos veces
     std::map<sf::TcpSocket*, bool> reportedResults;
+    // Guarda el nombre del rival aunque se cierre el juego
     std::map<sf::TcpSocket*, std::string> opponentUsers;
 
-    // variables del pool de hilos
+    // Los hilos usan estos datos para coger tareas pendientes
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
     std::mutex queueMutex;
-    std::mutex dataMutex; // candado para no pisar la memoria compartida
+    std::mutex dataMutex; // Este mutex protege la memoria compartida entre hilos
     std::condition_variable condition;
     bool stopPool;
 
-    // funciones de los hilos
+    // Funciones usadas por los hilos
     void ThreadPoolWorker();
     void EnqueueTask(std::function<void()> task);
 
-    // matchmaking
+    // Funciones de matchmaking
     void ProcessMatchmaking();
     void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
     void RemoveFromQueues(sf::TcpSocket* client);
 
-    // movidas internas del server
+    // Estas funciones son de uso interno del servidor
     bool ConnectDatabase();
     void DisconnectDatabase();
     bool CheckUserLogin(const std::string& user, const std::string& password);
@@ -93,7 +96,7 @@ private:
     void HandleJoinRoom(sf::TcpSocket* client, const std::string& roomName);
     void SendRankingToClient(sf::TcpSocket* client);
 
-    // cambiamos a short la version
+    // La version del mapa se guarda como short
     void HandleMapCheck(sf::TcpSocket* client, short clientVersion);
 
 public:

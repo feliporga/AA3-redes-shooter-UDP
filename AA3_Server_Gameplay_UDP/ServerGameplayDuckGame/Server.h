@@ -7,14 +7,16 @@
 #include <vector>
 #include "NetworkProtocol.h" 
 
-// librerias para la pool de hilos
+// Estas librerias permiten trabajar con varios hilos
 #include <thread>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
 
+// Tiempo maximo sin saber nada de un jugador antes de hacerlo perder
 #define PLAYER_TIMEOUT_SECONDS 5
+// Este tiempo marca cuando aparece el aviso por consola
 #define PLAYER_WARNING_SECONDS 2
 
 class Server {
@@ -36,8 +38,10 @@ private:
         S2C_StatePacket worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
+        // Este reloj mide cuanto lleva cada jugador sin mandar nada
         sf::Clock inactivityClock[2];
         bool pendingDelete;
+        // Esto evita repetir el aviso por consola muchas veces seguidas
         bool timeoutWarningShown[2];
     };
 
@@ -47,18 +51,18 @@ private:
 
     std::map<unsigned int, MatchData> matches;
 
-    // movidas de los hilos
+    // Los hilos usan estos datos para coger tareas pendientes
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
     std::mutex queueMutex;
-    std::mutex dataMutex; // candado principal del mapa
+    std::mutex dataMutex; // Protege las partidas mientras varios hilos las usan.
     std::condition_variable condition;
     bool stopPool;
 
     void ThreadPoolWorker();
     void EnqueueTask(std::function<void()> task);
 
-    // funciones del server
+    // Estas son las funciones principales del servidor UDP
     void ProcessPackets();
     void UpdatePhysics(MatchData& match);
     void BroadcastState(MatchData& match);

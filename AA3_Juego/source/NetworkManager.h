@@ -66,6 +66,7 @@ public:
     bool loginSuccess = false;
     bool loginError = false;
     bool gameStarted = false;
+    // Esta variable indica si el resultado ya se ha enviado
     bool resultReported = false;
 
     S2C_StatePacket lastState;
@@ -198,6 +199,7 @@ public:
                     unackedPackets.clear();
                     nextPacketID = 1;
 
+                    // Al empezar una nueva partida el resultado queda pendiente de enviar
                     resultReported = false;
                     gameStarted = true;
                     std::cout << "[CLIENTE] PARTIDA ENCONTRADA! Soy el jugador " << myPlayerID << " en el puerto " << dynamicUdpPort << std::endl;
@@ -205,6 +207,7 @@ public:
             }
         }
     }
+    // Esta funcion envia el resultado al servidor TCP
     void SendReportResult(short winnerPlayerID, bool hasWon) {
        /* sf::Packet p;
         p << (short)PacketType::ReportResult << winnerPlayerID;
