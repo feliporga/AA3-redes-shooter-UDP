@@ -36,6 +36,8 @@ class GameScene : public Scene {
 private:
     PlayerModel playerModels[2];
     sf::Clock gameClock;
+    sf::Clock returnToMenuClock;
+    bool returnToMenuTimerStarted;
     unsigned int lastServerTimestamp;
 
     // Evita aplicar predicción antes de recibir la primera posición oficial del servidor

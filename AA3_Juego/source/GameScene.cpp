@@ -2,13 +2,15 @@
 #include "NetworkManager.h"
 #include "RenderManager.h"
 #include "Spawner.h"
+#include "SceneManager.h"
 #include <iostream>
 #include <fstream>
-
+#define RETURN_TO_MENU_DELAY_SECONDS 3
 // Valores utilizados para la predicción local y la interpolación del rival
 const float LOCAL_PREDICTION_SPEED = 5.0f;
 const unsigned short INTERPOLATION_DELAY = 100;
 const unsigned short MAX_REMOTE_SNAPSHOTS = 30;
+
 
 class TileObject : public Object {
 public:
@@ -208,6 +210,7 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
 }
 
 void GameScene::OnEnter() {
+    returnToMenuTimerStarted = false;
     lastServerTimestamp = 0;
     hasInitialServerState = false;
     nextMovementID = 1;
@@ -216,6 +219,7 @@ void GameScene::OnEnter() {
     hasServerTimeOffset = false;
     serverTimeOffset = 0;
     gameClock.restart();
+    returnToMenuClock.restart();
 
     LoadPlayerAssets(0, 1);
     LoadPlayerAssets(1, 2);
@@ -375,14 +379,40 @@ void GameScene::Update() {
             bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
             NM.SendReportResult(NM.lastState.winnerID, hasWon);
             NM.resultReported = true;
+
         }
+
+        if (!returnToMenuTimerStarted) {
+            returnToMenuTimerStarted = true;
+            returnToMenuClock.restart();
+        }
+
         if (NM.lastState.winnerID == NM.myPlayerID) {
             statusText->SetText("¡VICTORIA! Has ganado la partida.");
             statusText->SetColor(sf::Color::Green);
         }
+       
         else {
             statusText->SetText("¡DERROTA! Te has quedado sin vidas.");
             statusText->SetColor(sf::Color::Red);
+        }
+        float remainingTime = RETURN_TO_MENU_DELAY_SECONDS - returnToMenuClock.getElapsedTime().asSeconds();
+
+        if (remainingTime < 0.0f) {
+            remainingTime = 0.0f;
+        }
+
+        if (NM.lastState.winnerID == NM.myPlayerID) {
+            statusText->SetText( "¡VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetColor(sf::Color::Green);
+        }
+        else {
+            statusText->SetText( "¡DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetColor(sf::Color::Red);
+        }
+
+        if (returnToMenuClock.getElapsedTime().asSeconds() >= RETURN_TO_MENU_DELAY_SECONDS) {
+            SM.SetNextScene("MainMenu");
         }
     }
     else {
