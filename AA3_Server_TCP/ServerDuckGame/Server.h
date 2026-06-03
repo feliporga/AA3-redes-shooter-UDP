@@ -38,10 +38,10 @@ private:
     std::vector<sf::TcpSocket*> clients;
     std::map<sf::TcpSocket*, std::string> loggedInUsers;
 
-    // Aqui se guardan los datos basicos del servidor
+    // se guardan los datos basicos del servidor
     unsigned short nextMatchID = 1;
 
-    // Aqui se guarda la conexion con MySQL
+    // se guarda la conexion con MySQL
     sql::Driver* driver;
     sql::Connection* con;
 
@@ -84,12 +84,13 @@ private:
     void StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive);
     void RemoveFromQueues(sf::TcpSocket* client);
 
-    // Estas funciones son de uso interno del servidor
+    // funciones de uso interno del servidor
     bool ConnectDatabase();
     void DisconnectDatabase();
     bool CheckUserLogin(const std::string& user, const std::string& password);
     bool RegisterUser(const std::string& user, const std::string& password);
 
+	// Funciones para procesar los paquetes recibidos
     void AcceptNewClient();
     void HandleClientPackets();
     void HandleCreateRoom(sf::TcpSocket* client, const std::string& roomName);

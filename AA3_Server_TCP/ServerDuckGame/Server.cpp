@@ -387,7 +387,7 @@ void Server::SendRankingToClient(sf::TcpSocket* client) {
     }
 }
 
-// La comprobacion de contraseña se hace fuera del bloqueo para no frenar al servidor.
+// La comprobacion de contraseña se hace fuera del bloqueo para no frenar al servidor
 bool Server::CheckUserLogin(const std::string& user, const std::string& password) {
     std::string hashFromDB;
     try {
@@ -530,7 +530,7 @@ void Server::RemoveFromQueues(sf::TcpSocket* client) {
 
 // se comprueba la version del mapa que tiene el cliente
 void Server::HandleMapCheck(sf::TcpSocket* client, short clientVersion) {
-    // versiond del mapa
+    // version del mapa
     short officialServerVersion = 1;
 
     if (clientVersion < officialServerVersion) {
