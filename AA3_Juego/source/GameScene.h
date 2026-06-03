@@ -4,6 +4,7 @@
 #include "Button.h"
 #include <SFML/Graphics.hpp>
 #include <vector>
+#include <string>
 
 #include "NetworkProtocol.h"
 #include "Transform.h"
@@ -52,6 +53,12 @@ private:
     std::vector<RemoteSnapshot> remoteSnapshots;
     bool hasServerTimeOffset;
     int serverTimeOffset;
+
+    // Este mensaje muestra durante unos segundos la irregularidad detectada por el servidor
+    sf::Clock irregularityMessageClock;
+    bool showIrregularityMessage;
+    unsigned short lastIrregularityEventID;
+    std::string irregularityMessage;
 
     TextObject* statusText;
     void LoadPlayerAssets(short index, short playerID);

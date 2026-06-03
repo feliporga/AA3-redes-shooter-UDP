@@ -30,6 +30,11 @@ GameScene::GameScene() : Scene() {
     hasServerTimeOffset = false;
     serverTimeOffset = 0;
 
+    // Los avisos del anti-cheat empiezan ocultos hasta que el servidor detecta una irregularidad
+    showIrregularityMessage = false;
+    lastIrregularityEventID = 0;
+    irregularityMessage = "";
+
     // Inicializar balas
     for (short i = 0; i < MAX_BULLETS; i++) {
         bulletActive[i] = false;
@@ -220,8 +225,15 @@ void GameScene::OnEnter() {
     remoteSnapshots.clear();
     hasServerTimeOffset = false;
     serverTimeOffset = 0;
+
+    // Se limpian los avisos del anti-cheat al iniciar una partida nueva
+    showIrregularityMessage = false;
+    lastIrregularityEventID = 0;
+    irregularityMessage = "";
+
     gameClock.restart();
     returnToMenuClock.restart();
+    irregularityMessageClock.restart();
 
     LoadPlayerAssets(0, 1);
     LoadPlayerAssets(1, 2);
@@ -357,6 +369,26 @@ void GameScene::Update() {
 
             hasInitialServerState = true;
 
+            // El aviso del anti-cheat solo se procesa una vez por cada irregularidad detectada
+            if (NM.lastState.correctionRequired &&
+                NM.lastState.irregularityEventID != lastIrregularityEventID) {
+                lastIrregularityEventID = NM.lastState.irregularityEventID;
+
+                if (NM.lastState.irregularPlayerID == NM.myPlayerID) {
+                    // La posicion local ya queda reconciliada con el estado oficial del servidor
+                    irregularityMessage = "AVISO: irregularidad " +
+                        std::to_string(NM.lastState.irregularityCount) +
+                        "/3. Reconciliando.";
+                }
+                else {
+                    irregularityMessage = "Rival advertido: irregularidad " +
+                        std::to_string(NM.lastState.irregularityCount) + "/3.";
+                }
+
+                showIrregularityMessage = true;
+                irregularityMessageClock.restart();
+            }
+
             for (short i = 0; i < MAX_BULLETS; i++) {
                 bulletActive[i] = NM.lastState.bullets[i].active;
                 bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
@@ -377,6 +409,10 @@ void GameScene::Update() {
 
     // hud de vidas y win/lose
     if (NM.lastState.isGameOver) {
+        // Permite diferenciar si el jugador ha perdido por tres irregularidades
+        bool lostByIrregularities = NM.lastState.gameOverByIrregularities &&
+            NM.lastState.irregularPlayerID == NM.myPlayerID;
+
         if (!NM.resultReported) {
             // El resultado se envia una sola vez al servidor TCP
             bool hasWon = NM.lastState.winnerID == NM.myPlayerID;
@@ -395,7 +431,12 @@ void GameScene::Update() {
             statusText->SetText("¡VICTORIA! Has ganado la partida.");
             statusText->SetColor(sf::Color::Green);
         }
-       
+
+        else if (lostByIrregularities) {
+            statusText->SetText("¡DERROTA POR IRREGULARIDADES!");
+            statusText->SetColor(sf::Color::Red);
+        }
+
         else {
             statusText->SetText("¡DERROTA! Te has quedado sin vidas.");
             statusText->SetColor(sf::Color::Red);
@@ -408,11 +449,15 @@ void GameScene::Update() {
         }
 
         if (NM.lastState.winnerID == NM.myPlayerID) {
-            statusText->SetText( "¡VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("¡VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Green);
         }
+        else if (lostByIrregularities) {
+            statusText->SetText("¡DERROTA POR IRREGULARIDADES! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetColor(sf::Color::Red);
+        }
         else {
-            statusText->SetText( "¡DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("¡DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Red);
         }
 
@@ -429,6 +474,16 @@ void GameScene::Update() {
             " | Mi HP: " + std::to_string(NM.lastState.players[myIndex].hp) +
             " --- HP Enemigo: " + std::to_string(NM.lastState.players[enemyIndex].hp);
         statusText->SetText(hpInfo);
+
+        // La notificacion se mantiene unos segundos y despues vuelve a mostrar solamente el HUD
+        if (showIrregularityMessage) {
+            if (irregularityMessageClock.getElapsedTime().asSeconds() < 3.0f) {
+                statusText->SetText(irregularityMessage + " | " + hpInfo);
+            }
+            else {
+                showIrregularityMessage = false;
+            }
+        }
     }
 }
 

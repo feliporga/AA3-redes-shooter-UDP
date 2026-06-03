@@ -5,9 +5,8 @@
 #include <optional>
 #include <map>
 #include <vector>
+#include <string>
 #include "NetworkProtocol.h" 
-
-// Estas librerias permiten trabajar con varios hilos
 #include <thread>
 #include <queue>
 #include <mutex>
@@ -34,6 +33,10 @@ private:
 
         // ultimo id que procesamos para reconciliar
         unsigned int lastProcessedMovementID[2];
+
+        // Cada jugador acumula sus propias irregularidades dentro de esta partida
+        short irregularities[2];
+        unsigned short irregularityEventID;
 
         S2C_StatePacket worldState;
         sf::Clock serverClock;
@@ -69,6 +72,9 @@ private:
     void InitMatch(MatchData& match, unsigned int matchID);
     void CleanupMatches();
     void CheckTimeouts(MatchData& match);
+
+    // Registra una irregularidad avisa a los clientes y termina la partida si llega a tres
+    void RegisterIrregularity(MatchData& match, short playerIndex, const std::string& reason);
 
 public:
     Server(unsigned short port);

@@ -61,6 +61,9 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         // El jugador empieza sin movimientos confirmados
         match.lastProcessedMovementID[i] = 0;
 
+        // Los jugadores empiezan sin irregularidades acumuladas
+        match.irregularities[i] = 0;
+
         match.worldState.players[i].id = i + 1;
         match.worldState.players[i].posX = 100 + (i * 400);
         match.worldState.players[i].posY = 300;
@@ -80,6 +83,14 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
     match.worldState.winnerID = 0;
     match.worldState.matchID = matchID;
 
+    // La partida empieza sin avisos pendientes del anti-cheat
+    match.irregularityEventID = 0;
+    match.worldState.correctionRequired = false;
+    match.worldState.irregularPlayerID = 0;
+    match.worldState.irregularityCount = 0;
+    match.worldState.irregularityEventID = 0;
+    match.worldState.gameOverByIrregularities = false;
+
     // La partida empieza sin balas activas
     for (short i = 0; i < MAX_BULLETS; i++) {
         match.worldState.bullets[i].active = false;
@@ -88,6 +99,43 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
     match.serverClock.restart();
     match.endClock.restart();
     match.pendingDelete = false;
+}
+
+// El servidor registra una accion no permitida y envia la correccion a los clientes
+void Server::RegisterIrregularity(MatchData& match, short playerIndex, const std::string& reason) {
+    if (playerIndex < 0 || playerIndex >= 2) return;
+    if (match.worldState.isGameOver) return;
+
+    match.irregularities[playerIndex]++;
+    match.irregularityEventID++;
+
+    // El snapshot avisa a ambos clientes y permite que el jugador afectado se reconcilie
+    match.worldState.correctionRequired = true;
+    match.worldState.irregularPlayerID = match.worldState.players[playerIndex].id;
+    match.worldState.irregularityCount = match.irregularities[playerIndex];
+    match.worldState.irregularityEventID = match.irregularityEventID;
+
+    // El input sospechoso se cancela y se conserva como valida la posicion del servidor
+    match.playerInputs[playerIndex] = INPUT_NONE;
+
+    std::cout << "[ANTI-CHEAT] jugador " << match.worldState.players[playerIndex].id
+        << " irregularidad " << match.irregularities[playerIndex]
+        << "/" << MAX_IRREGULARITIES << ": " << reason << std::endl;
+
+    // Si acumula tres irregularidades pierde automaticamente la partida
+    if (match.irregularities[playerIndex] >= MAX_IRREGULARITIES) {
+        short winnerIndex = (playerIndex == 0) ? 1 : 0;
+
+        match.worldState.isGameOver = true;
+        match.worldState.winnerID = match.worldState.players[winnerIndex].id;
+        match.worldState.gameOverByIrregularities = true;
+
+        match.pendingDelete = true;
+        match.endClock.restart();
+
+        std::cout << "[ANTI-CHEAT] jugador " << match.worldState.players[playerIndex].id
+            << " eliminado. Gana jugador " << match.worldState.winnerID << std::endl;
+    }
 }
 
 // El bucle principal UDP lee paquetes actualiza partidas y envia estados
@@ -136,6 +184,7 @@ void Server::ProcessPackets() {
 
     while (udpSocket.receive(buffer, sizeof(buffer), received, sender, senderPort) == sf::Socket::Status::Done) {
         if (received < sizeof(C2S_InputPacket)) continue;
+        if (!sender.has_value()) continue;
 
         uint8_t flags = buffer[0];
 
@@ -156,81 +205,137 @@ void Server::ProcessPackets() {
 
             MatchData& match = matches[in.matchID];
 
-            // Los paquetes importantes se confirman con ACK para no repetirlos
-            if (flags & CRITICAL_PACKET) {
-                S2C_AckPacket ack;
-                ack.ackedPacketID = in.packetID;
-                udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
-
-                short idx = in.playerID - 1;
-
-                if (idx >= 0 && idx < 2) {
-                    bool alreadyProcessed =
-                        std::find(
-                            match.processedCriticalPackets[idx].begin(),
-                            match.processedCriticalPackets[idx].end(),
-                            in.packetID
-                        ) != match.processedCriticalPackets[idx].end();
-
-                    if (!alreadyProcessed) {
-                        match.processedCriticalPackets[idx].push_back(in.packetID);
-
-                        if (in.inputMask & INPUT_SHOOT) {
-                            // Se busca un hueco libre para crear la bala
-                            for (short i = 0; i < MAX_BULLETS; i++) {
-                                if (!match.worldState.bullets[i].active) {
-                                    match.worldState.bullets[i].active = true;
-                                    match.worldState.bullets[i].ownerID = in.playerID;
-                                    match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
-
-                                    if (match.worldState.players[idx].facingRight) {
-                                        match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
-                                        match.worldState.bullets[i].velX = 15;
-                                    }
-                                    else {
-                                        match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
-                                        match.worldState.bullets[i].velX = -15;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             if (in.type == (short)PacketType::MatchCreatedNotification) {
                 for (short i = 0; i < 2; i++) {
                     match.clientConnected[i] = false;
                     match.worldState.players[i].posX = 100 + (i * 400);
                     match.worldState.players[i].posY = 300;
                 }
+                return;
             }
-            else if (in.type == (short)PacketType::GameMove) {
-                short idx = in.playerID - 1;
-                if (idx >= 0 && idx < 2) {
-                    // Un paquete recibido del jugador indica que sigue conectado
-                    match.inactivityClock[idx].restart();
-                    match.timeoutWarningShown[idx] = false;
 
-                    if (!match.clientConnected[idx]) {
-                        match.clientIPs[idx] = sender;
-                        match.clientPorts[idx] = senderPort;
-                        match.clientConnected[idx] = true;
-                        std::cout << "[UDP] jugador " << in.playerID << " enganchado" << std::endl;
-                    }
+            if (in.type != (short)PacketType::GameMove) return;
 
-                    if (!(flags & CRITICAL_PACKET)) {
-                        if (in.timestamp >= match.lastTimestamps[idx]) {
-                            match.lastTimestamps[idx] = in.timestamp;
-                            match.playerInputs[idx] = in.inputMask;
+            // Se busca si el origen del paquete ya pertenece a uno de los jugadores conectados
+            short senderPlayerIndex = -1;
+            for (short i = 0; i < 2; i++) {
+                if (match.clientConnected[i] &&
+                    match.clientIPs[i].has_value() &&
+                    match.clientIPs[i].value() == sender.value() &&
+                    match.clientPorts[i] == senderPort) {
+                    senderPlayerIndex = i;
+                }
+            }
 
-                            if (in.movementID > match.lastProcessedMovementID[idx]) {
-                                match.lastProcessedMovementID[idx] = in.movementID;
-                                match.worldState.players[idx].lastProcessedMovementID = in.movementID;
+            short idx = in.playerID - 1;
+
+            // Un jugador ya conocido no puede enviar un identificador que no exista
+            if (idx < 0 || idx >= 2) {
+                if (senderPlayerIndex != -1) {
+                    RegisterIrregularity(match, senderPlayerIndex, "playerID no valido");
+                }
+                return;
+            }
+
+            // Un jugador no puede enviar acciones utilizando el playerID de su rival
+            if (senderPlayerIndex != -1 && senderPlayerIndex != idx) {
+                RegisterIrregularity(match, senderPlayerIndex, "intento de controlar al rival");
+                return;
+            }
+
+            if (!match.clientConnected[idx]) {
+                match.clientIPs[idx] = sender;
+                match.clientPorts[idx] = senderPort;
+                match.clientConnected[idx] = true;
+                std::cout << "[UDP] jugador " << in.playerID << " enganchado" << std::endl;
+            }
+            else if (!match.clientIPs[idx].has_value() ||
+                match.clientIPs[idx].value() != sender.value() ||
+                match.clientPorts[idx] != senderPort) {
+                // Si un origen desconocido intenta usar un slot ocupado el paquete se rechaza
+                // No se suma falta al jugador real porque puede tratarse de un tercero
+                std::cout << "[ANTI-CHEAT] paquete rechazado para jugador "
+                    << in.playerID << " desde origen no registrado" << std::endl;
+                return;
+            }
+
+            // Un paquete recibido del jugador indica que sigue conectado
+            match.inactivityClock[idx].restart();
+            match.timeoutWarningShown[idx] = false;
+
+            // Solo se aceptan paquetes normales o paquetes criticos definidos por el juego
+            if (flags != NORMAL_PACKET && flags != CRITICAL_PACKET) {
+                RegisterIrregularity(match, idx, "flags de paquete no validos");
+                return;
+            }
+
+            // Los paquetes importantes se confirman con ACK para no repetirlos
+            if (flags & CRITICAL_PACKET) {
+                // Los paquetes criticos de este juego solo pueden representar un disparo
+                if (in.packetID == 0 || in.inputMask != INPUT_SHOOT || in.movementID != 0) {
+                    RegisterIrregularity(match, idx, "paquete critico no valido");
+                    return;
+                }
+
+                S2C_AckPacket ack;
+                ack.ackedPacketID = in.packetID;
+                udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
+
+                bool alreadyProcessed =
+                    std::find(
+                        match.processedCriticalPackets[idx].begin(),
+                        match.processedCriticalPackets[idx].end(),
+                        in.packetID
+                    ) != match.processedCriticalPackets[idx].end();
+
+                if (!alreadyProcessed) {
+                    match.processedCriticalPackets[idx].push_back(in.packetID);
+
+                    if (in.inputMask & INPUT_SHOOT) {
+                        // Se busca un hueco libre para crear la bala
+                        for (short i = 0; i < MAX_BULLETS; i++) {
+                            if (!match.worldState.bullets[i].active) {
+                                match.worldState.bullets[i].active = true;
+                                match.worldState.bullets[i].ownerID = in.playerID;
+                                match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
+
+                                if (match.worldState.players[idx].facingRight) {
+                                    match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
+                                    match.worldState.bullets[i].velX = 15;
+                                }
+                                else {
+                                    match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
+                                    match.worldState.bullets[i].velX = -15;
+                                }
+                                break;
                             }
                         }
                     }
+                }
+
+                return;
+            }
+
+            // El movimiento normal puede moverse saltar o hacer burla pero no disparar
+            short allowedMovementMask = INPUT_LEFT | INPUT_RIGHT | INPUT_JUMP | INPUT_TAUNT;
+            if ((in.inputMask & ~allowedMovementMask) != 0) {
+                RegisterIrregularity(match, idx, "input de movimiento no permitido");
+                return;
+            }
+
+            // El movimiento normal necesita ID para que luego el cliente pueda reconciliar
+            if (in.movementID == 0) {
+                RegisterIrregularity(match, idx, "movementID no valido");
+                return;
+            }
+
+            if (in.timestamp >= match.lastTimestamps[idx]) {
+                match.lastTimestamps[idx] = in.timestamp;
+                match.playerInputs[idx] = in.inputMask;
+
+                if (in.movementID > match.lastProcessedMovementID[idx]) {
+                    match.lastProcessedMovementID[idx] = in.movementID;
+                    match.worldState.players[idx].lastProcessedMovementID = in.movementID;
                 }
             }
             });

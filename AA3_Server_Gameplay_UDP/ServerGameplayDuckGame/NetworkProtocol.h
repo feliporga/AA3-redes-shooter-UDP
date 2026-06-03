@@ -8,6 +8,9 @@
 
 #define MAX_BULLETS 20
 
+// Numero maximo de irregularidades antes de dar la partida por perdida
+#define MAX_IRREGULARITIES 3
+
 
 
 //stats player 
@@ -120,5 +123,14 @@ struct S2C_StatePacket {
     bool isGameOver = false;
     short winnerID = 0;
     unsigned short matchID = 0;
+
+    // Estos datos permiten avisar al cliente cuando el servidor detecta una irregularidad
+    bool correctionRequired = false;
+    short irregularPlayerID = 0;
+    short irregularityCount = 0;
+    unsigned short irregularityEventID = 0;
+
+    // Indica que el game over se ha producido al alcanzar tres irregularidades
+    bool gameOverByIrregularities = false;
 };
 #pragma pack(pop)
