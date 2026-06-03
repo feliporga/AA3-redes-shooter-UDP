@@ -4,7 +4,7 @@
 Server::Server(unsigned short port) : port(port), isRunning(false), stopPool(false) {
     LoadMapCollisions();
     // Se crean varios hilos para repartir el trabajo
-    for (short i = 0; i < 4; ++i) {
+    for (short i = 0; i < 4; i++) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
     }
 }

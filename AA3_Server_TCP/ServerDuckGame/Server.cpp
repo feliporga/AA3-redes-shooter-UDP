@@ -2,7 +2,7 @@
 
 Server::Server(unsigned short port) : port(port), isRunning(false), driver(nullptr), con(nullptr), stopPool(false) {
     // Se crean hilos para procesar paquetes sin parar el servidor
-    for (short i = 0; i < 4; ++i) {
+    for (short i = 0; i < 4; i++) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
     }
 }
