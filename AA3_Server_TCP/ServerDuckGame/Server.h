@@ -22,8 +22,8 @@
 #include "bcrypt.h"
 
 #define SERVER_IP "127.0.0.1"
-#define SERVER_TCP_PORT 60000
-#define SERVER_UDP_PORT 60001
+#define SERVER_TCP_PORT 55009
+#define SERVER_UDP_PORT 55010
 
 #define DB_USER "root"
 #define DB_PASS "enti"

@@ -10,8 +10,8 @@
 
 
 #define SERVER_UDP_IP "127.0.0.1"
-#define SERVER_TCP_PORT 60000
-#define SERVER_UDP_PORT 60001
+#define SERVER_TCP_PORT 55009
+#define SERVER_UDP_PORT 55010
 #define SERVER_TCP_IP "127.0.0.1"
 #define NM NetworkManager::Instance()
 
@@ -71,7 +71,7 @@ public:
     S2C_StatePacket lastState;
     bool newStateReceived = false;
 
-    unsigned short dynamicUdpPort = 60001;
+    unsigned short dynamicUdpPort = SERVER_UDP_PORT;
     // TCP
 
     bool ConnectToServer(const std::string& ip, unsigned short port) {
