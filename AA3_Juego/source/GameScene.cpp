@@ -35,6 +35,13 @@ GameScene::GameScene() : Scene() {
     lastIrregularityEventID = 0;
     irregularityMessage = "";
 
+    // La prediccion local empieza sin velocidad hasta recibir la primera posicion oficial
+    localPredictedVelX = 0;
+    localPredictedVelY = 0;
+    localPredictedOnGround = false;
+    localMapRows = 0;
+    localMapCols = 0;
+
     // Inicializar balas
     for (short i = 0; i < MAX_BULLETS; i++) {
         bulletActive[i] = false;
@@ -53,16 +60,22 @@ void GameScene::LoadMap() {
     std::ifstream file("resources/mapa.txt");
     if (!file.is_open()) return;
 
+    localLevelMap.clear();
+    localMapRows = 0;
+    localMapCols = 0;
+
     std::string line;
     short row = 0;
 
     while (std::getline(file, line)) {
         short col = 0;
+        std::vector<short> collisionRow;
 
         // El mapa actual utiliza valores 0 y 1 separados por espacios
         for (std::size_t i = 0; i < line.size(); i++) {
             if (line[i] == '0' || line[i] == '1') {
                 short tileType = line[i] - '0';
+                collisionRow.push_back(tileType);
 
                 if (tileType == 1) {
                     TileObject* tile = new TileObject(col * 32.0f, row * 32.0f);
@@ -73,9 +86,18 @@ void GameScene::LoadMap() {
             }
         }
 
+        if (!collisionRow.empty()) {
+            localLevelMap.push_back(collisionRow);
+        }
+
         row++;
     }
     file.close();
+
+    localMapRows = (short)localLevelMap.size();
+    if (localMapRows > 0) {
+        localMapCols = (short)localLevelMap[0].size();
+    }
 }
 
 void GameScene::LoadPlayerAssets(short index, short playerID) {
@@ -101,27 +123,117 @@ void GameScene::LoadPlayerAssets(short index, short playerID) {
     playerModels[index].activeRenderer = playerModels[index].rendIdle;
 }
 
-void GameScene::ApplyLocalHorizontalPrediction(short inputMask) {
+bool GameScene::CheckLocalTileCollision(short x, short y, short w, short h) {
+    if (localMapRows == 0 || localMapCols == 0) return false;
+
+    short TILE_SIZE = 32;
+    short leftTile = x / TILE_SIZE;
+    short rightTile = (x + w - 1) / TILE_SIZE;
+    short topTile = y / TILE_SIZE;
+    short bottomTile = (y + h - 1) / TILE_SIZE;
+
+    // topes de seguridad
+    if (leftTile < 0) leftTile = 0;
+    if (rightTile >= localMapCols) rightTile = localMapCols - 1;
+    if (topTile < 0) topTile = 0;
+    if (bottomTile >= localMapRows) bottomTile = localMapRows - 1;
+
+    for (short i = topTile; i <= bottomTile; i++) {
+        for (short j = leftTile; j <= rightTile; j++) {
+            if (localLevelMap[i][j] == 1) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool GameScene::CheckLocalGround(short x, short y, short w, short h) {
+    return CheckLocalTileCollision(x, y + 1, w, h);
+}
+
+void GameScene::InitializeLocalPredictionFromServer(const PlayerState& serverPlayer) {
+    localPredictedVelX = serverPlayer.velX;
+    localPredictedVelY = serverPlayer.velY;
+    localPredictedOnGround = serverPlayer.onGround;
+}
+
+void GameScene::ApplyLocalPrediction(short inputMask) {
     if (!hasInitialServerState || NM.myPlayerID == 0) return;
 
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
-    float predictedVelocityX = 0.0f;
+    Transform& t = playerModels[localIndex].transform;
 
-    if (inputMask & INPUT_LEFT) predictedVelocityX = -LOCAL_PREDICTION_SPEED;
-    if (inputMask & INPUT_RIGHT) predictedVelocityX = LOCAL_PREDICTION_SPEED;
+    short oldX = (short)t.position.x;
+    short oldY = (short)t.position.y;
 
-    playerModels[localIndex].transform.position.x += predictedVelocityX;
+    localPredictedVelY += 1; // gravedad
+    localPredictedVelX = 0;
+
+    if (inputMask & INPUT_LEFT) localPredictedVelX = -5;
+    if (inputMask & INPUT_RIGHT) localPredictedVelX = 5;
+
+    if ((inputMask & INPUT_JUMP) && localPredictedOnGround) {
+        localPredictedVelY = -15;
+        localPredictedOnGround = false;
+    }
+
+    t.position.x += localPredictedVelX;
+
+    if (CheckLocalTileCollision((short)t.position.x, (short)t.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
+        t.position.x = (float)oldX;
+        localPredictedVelX = 0;
+    }
+
+    localPredictedOnGround = false;
+
+    t.position.y += localPredictedVelY;
+
+    if (CheckLocalTileCollision((short)t.position.x, (short)t.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
+        t.position.y = (float)oldY;
+
+        if (localPredictedVelY > 0) {
+            localPredictedOnGround = true;
+        }
+
+        localPredictedVelY = 0;
+    }
+    else {
+        localPredictedOnGround = CheckLocalGround((short)t.position.x, (short)t.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
+    }
 }
 
 void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
 
-    // Se usa la posicion oficial que llega del servidor
-    // La posicion local vuelve a lo que ha calculado el servidor
-    playerModels[localIndex].transform.position =
-        Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
+    bool mustGoBack = NM.lastState.movementBackRequired &&
+        NM.lastState.backPlayerID == NM.myPlayerID;
 
-    // Se eliminan los inputs que el servidor ya ha usado
+    if (mustGoBack) {
+        // BACK:
+        // El servidor ha detectado una posicion mala o un respawn y nos obliga a volver al ultimo punto valido.
+        playerModels[localIndex].transform.position =
+            Vector2((float)NM.lastState.backPosX, (float)NM.lastState.backPosY);
+
+        localPredictedVelX = 0;
+        localPredictedVelY = 0;
+        localPredictedOnGround = serverPlayer.onGround;
+
+        // Como el servidor dice BACK, cancelamos los movimientos posteriores almacenados.
+        pendingMovements.clear();
+
+        // Despues de un BACK, evitamos reutilizar IDs antiguos.
+        if (nextMovementID <= NM.lastState.backMovementID) {
+            nextMovementID = NM.lastState.backMovementID + 1;
+        }
+
+        std::cout << "[RECONCILIACION] BACK/" << NM.lastState.backMovementID
+            << " -> (" << NM.lastState.backPosX << ", " << NM.lastState.backPosY << ")" << std::endl;
+        return;
+    }
+
+    // Se eliminan los movimientos que el servidor ya ha validado como correctos.
     for (std::size_t i = 0; i < pendingMovements.size(); ) {
         if (pendingMovements[i].movementID <= serverPlayer.lastProcessedMovementID) {
             pendingMovements.erase(pendingMovements.begin() + i);
@@ -130,24 +242,20 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
             i++;
         }
     }
-
-    // Se vuelven a aplicar los inputs que el servidor aun no ha confirmado
-    for (std::size_t i = 0; i < pendingMovements.size(); i++) {
-        ApplyLocalHorizontalPrediction(pendingMovements[i].inputMask);
-    }
 }
 
 void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp) {
     RemoteSnapshot newSnapshot;
     newSnapshot.timestamp = timestamp;
     newSnapshot.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
+    newSnapshot.movementID = serverPlayer.lastProcessedMovementID;
 
     bool inserted = false;
 
     // Los estados del rival se guardan ordenados aunque los paquetes UDP lleguen desordenados
     // no provoquen que el personaje vuelva atrás en pantalla.
     for (std::vector<RemoteSnapshot>::iterator it = remoteSnapshots.begin(); it != remoteSnapshots.end(); ++it) {
-        if (it->timestamp == newSnapshot.timestamp) {
+        if (it->movementID == newSnapshot.movementID && it->timestamp == newSnapshot.timestamp) {
             return;
         }
 
@@ -173,17 +281,17 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
     short enemyIndex = (NM.myPlayerID == 1) ? 1 : 0;
 
     if (!hasServerTimeOffset) {
-        serverTimeOffset = currentTime - remoteSnapshots.back().timestamp;
+        serverTimeOffset = (int)currentTime - (int)remoteSnapshots.back().timestamp;
         hasServerTimeOffset = true;
     }
 
     // El rival se dibuja con un pequeño retraso para poder suavizar el movimiento
     // entre los que interpolar y evitar teletransportes
     int renderTimestamp =
-        currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
+        (int)currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
 
     while (remoteSnapshots.size() >= 2 &&
-        remoteSnapshots[1].timestamp <= renderTimestamp) {
+        (int)remoteSnapshots[1].timestamp <= renderTimestamp) {
         remoteSnapshots.erase(remoteSnapshots.begin());
     }
 
@@ -195,7 +303,7 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
     RemoteSnapshot& firstSnapshot = remoteSnapshots[0];
     RemoteSnapshot& secondSnapshot = remoteSnapshots[1];
 
-    float timeRange = (float)(secondSnapshot.timestamp - firstSnapshot.timestamp);
+    float timeRange = (float)((int)secondSnapshot.timestamp - (int)firstSnapshot.timestamp);
     float interpolationValue = 0.0f;
 
     if (timeRange > 0.0f) {
@@ -231,6 +339,10 @@ void GameScene::OnEnter() {
     lastIrregularityEventID = 0;
     irregularityMessage = "";
 
+    localPredictedVelX = 0;
+    localPredictedVelY = 0;
+    localPredictedOnGround = false;
+
     gameClock.restart();
     returnToMenuClock.restart();
     irregularityMessageClock.restart();
@@ -263,12 +375,7 @@ void GameScene::Update() {
         static bool prevOnGround = true;
 
         bool currentJump = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space);
-        short myIndex = (NM.lastState.players[0].id == NM.myPlayerID) ? 0 : 1;
-        bool currentOnGround = false;
-
-        if (hasInitialServerState) {
-            currentOnGround = NM.lastState.players[myIndex].onGround;
-        }
+        bool currentOnGround = localPredictedOnGround;
 
         if (currentJump) {
             mask |= INPUT_JUMP;
@@ -282,19 +389,30 @@ void GameScene::Update() {
 
         unsigned short movementID = nextMovementID++;
 
-        NM.SendUDPInput(mask, currentTime, movementID);
+        bool hasPredictedPosition = false;
+        short predictedPosX = 0;
+        short predictedPosY = 0;
 
         // Se aplica prediccion local
         // El jugador se mueve en local sin esperar al servidor
         // El input se guarda hasta que el servidor lo confirme
         if (hasInitialServerState && NM.myPlayerID != 0) {
+            ApplyLocalPrediction(mask);
+
+            short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
+            predictedPosX = (short)playerModels[localIndex].transform.position.x;
+            predictedPosY = (short)playerModels[localIndex].transform.position.y;
+            hasPredictedPosition = true;
+
             PendingMovement newMovement;
             newMovement.movementID = movementID;
             newMovement.inputMask = mask;
+            newMovement.posX = predictedPosX;
+            newMovement.posY = predictedPosY;
             pendingMovements.push_back(newMovement);
-
-            ApplyLocalHorizontalPrediction(mask);
         }
+
+        NM.SendUDPInput(mask, currentTime, movementID, hasPredictedPosition, predictedPosX, predictedPosY);
 
         // SHOUT (F)
         static bool prevShoot = false;
@@ -333,11 +451,15 @@ void GameScene::Update() {
                 if (firstServerState) {
                     // El primer estado recibido coloca directamente a ambos jugadores
                     m.transform.position = Vector2((float)s.posX, (float)s.posY);
+
+                    if (isLocalPlayer) {
+                        InitializeLocalPredictionFromServer(s);
+                    }
                 }
                 else if (isLocalPlayer) {
-                    // Se corrige la posicion local con la posicion del servidor
-                    // El servidor devuelve la posicion oficial y el ultimo movementID que ha usado
-                    // El cliente vuelve a esa posicion y reaplica los movimientos pendientes
+                    // Reconciliacion:
+                    // Si el servidor manda BACK volvemos a su posicion corregida.
+                    // Si no manda BACK solo limpiamos los movimientos que ya ha validado.
                     ReconcileLocalPlayer(s);
                 }
 
@@ -385,6 +507,13 @@ void GameScene::Update() {
                         std::to_string(NM.lastState.irregularityCount) + "/3.";
                 }
 
+                showIrregularityMessage = true;
+                irregularityMessageClock.restart();
+            }
+
+            if (NM.lastState.movementBackRequired && NM.lastState.backPlayerID == NM.myPlayerID) {
+                irregularityMessage = "BACK/" + std::to_string(NM.lastState.backMovementID) +
+                    " -> posicion corregida por servidor.";
                 showIrregularityMessage = true;
                 irregularityMessageClock.restart();
             }

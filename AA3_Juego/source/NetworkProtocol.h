@@ -74,6 +74,11 @@ struct C2S_InputPacket {
 
     // Identifica cada input normal para poder hacer predicción y reconciliación
     unsigned short movementID = 0;
+
+    // Posicion predicha por el cliente para que el servidor pueda validarla como en el tema de movimiento
+    bool hasPredictedPosition = false;
+    short predictedPosX = 0;
+    short predictedPosY = 0;
 };
 
 // Paquete de Confirmación (Servidor -> Cliente UDP)
@@ -128,5 +133,12 @@ struct S2C_StatePacket {
 
     // Indica que el game over se ha producido al alcanzar tres irregularidades
     bool gameOverByIrregularities = false;
+
+    // Datos de reconciliacion tipo BACK/ID como en el tema de movimiento
+    bool movementBackRequired = false;
+    short backPlayerID = 0;
+    unsigned short backMovementID = 0;
+    short backPosX = 0;
+    short backPosY = 0;
 };
 #pragma pack(pop)

@@ -178,8 +178,9 @@ public:
                     myPlayerID = pID;
                     currentMatchID = matchID;
                     dynamicUdpPort = udpPort;
-                    //serverUdpIp = sf::IpAddress::resolve(udpIP);
-                    serverUdpIp = tcpSocket.getRemoteAddress();
+
+                    // Usamos la IP UDP que envia el servidor TCP para llegar al servidor dedicado de gameplay
+                    serverUdpIp = sf::IpAddress::resolve(udpIP);
 
                     lastState = S2C_StatePacket{};
                     newStateReceived = false;
@@ -203,7 +204,7 @@ public:
 
     // UDP
 
-    void SendUDPInput(short mask, unsigned int time, unsigned short movementID) {
+    void SendUDPInput(short mask, unsigned int time, unsigned short movementID, bool hasPredictedPosition, short predictedPosX, short predictedPosY) {
         if (!serverUdpIp.has_value()) return;
 
         C2S_InputPacket packet;
@@ -216,6 +217,11 @@ public:
 
         // Los inputs normales llevan ID para que el cliente pueda reconciliar
         packet.movementID = movementID;
+
+        // El cliente envia la posicion que ha predicho para que el servidor la valide
+        packet.hasPredictedPosition = hasPredictedPosition;
+        packet.predictedPosX = predictedPosX;
+        packet.predictedPosY = predictedPosY;
 
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
     }
@@ -233,6 +239,11 @@ public:
 
         // Los disparos usan packetID para ACK, no forman parte de la reconciliaci�n de movimiento
         packet.movementID = 0;
+
+        // Los paquetes criticos no validan posicion, solo la accion concreta
+        packet.hasPredictedPosition = false;
+        packet.predictedPosX = 0;
+        packet.predictedPosY = 0;
 
         udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
         unackedPackets.push_back({ packet, time });

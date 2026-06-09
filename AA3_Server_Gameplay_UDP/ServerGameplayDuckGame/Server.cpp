@@ -59,6 +59,13 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         // El jugador empieza sin movimientos confirmados
         match.lastProcessedMovementID[i] = 0;
 
+        // Los movimientos predichos pendientes empiezan vacios
+        match.pendingMovements[i].clear();
+
+        // Al empezar la partida no hay correccion BACK pendiente
+        match.movementCorrectionPending[i] = false;
+        match.correctionBackMovementID[i] = 0;
+
         // Los jugadores empiezan sin irregularidades acumuladas
         match.irregularities[i] = 0;
 
@@ -75,6 +82,10 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.worldState.players[i].hp = INITIAL_HP;
         match.worldState.players[i].lives = INITIAL_LIVES;
         match.worldState.players[i].lastProcessedMovementID = 0;
+
+        // Ultima posicion valida del servidor usada para poder hacer BACK/ID
+        match.lastValidPosX[i] = match.worldState.players[i].posX;
+        match.lastValidPosY[i] = match.worldState.players[i].posY;
     }
 
     match.worldState.isGameOver = false;
@@ -88,6 +99,13 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
     match.worldState.irregularityCount = 0;
     match.worldState.irregularityEventID = 0;
     match.worldState.gameOverByIrregularities = false;
+
+    // La partida empieza sin BACK pendiente
+    match.worldState.movementBackRequired = false;
+    match.worldState.backPlayerID = 0;
+    match.worldState.backMovementID = 0;
+    match.worldState.backPosX = 0;
+    match.worldState.backPosY = 0;
 
     // La partida empieza sin balas activas
     for (short i = 0; i < MAX_BULLETS; i++) {
@@ -133,6 +151,44 @@ void Server::RegisterIrregularity(MatchData& match, short playerIndex, const std
 
         std::cout << "[ANTI-CHEAT] jugador " << match.worldState.players[playerIndex].id
             << " eliminado. Gana jugador " << match.worldState.winnerID << std::endl;
+    }
+}
+
+// Prepara la reconciliacion BACK. Sirve tanto para un movimiento BAD como para un respawn.
+void Server::SetBackCorrection(MatchData& match, short playerIndex, const std::string& reason, bool countAsIrregularity) {
+    if (playerIndex < 0 || playerIndex >= 2) return;
+    if (match.worldState.isGameOver) return;
+
+    PlayerState& p = match.worldState.players[playerIndex];
+
+    // BACK:
+    // El servidor devuelve al jugador a la ultima posicion valida confirmada.
+    p.posX = match.lastValidPosX[playerIndex];
+    p.posY = match.lastValidPosY[playerIndex];
+    p.velX = 0;
+    p.velY = 0;
+    p.onGround = CheckGround(p.posX, p.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
+
+    match.worldState.movementBackRequired = true;
+    match.worldState.backPlayerID = p.id;
+    match.worldState.backMovementID = (unsigned short)match.lastProcessedMovementID[playerIndex];
+    match.worldState.backPosX = match.lastValidPosX[playerIndex];
+    match.worldState.backPosY = match.lastValidPosY[playerIndex];
+
+    // Mientras el cliente no haya vuelto a una posicion cercana al BACK, ignoraremos snapshots antiguos.
+    match.movementCorrectionPending[playerIndex] = true;
+    match.correctionBackMovementID[playerIndex] = (unsigned short)match.lastProcessedMovementID[playerIndex];
+
+    // Si una posicion es BAD, anulamos el resto de movimientos pendientes como en la reconciliacion del tema.
+    match.pendingMovements[playerIndex].clear();
+
+    std::cout << "[RECONCILIACION] BACK jugador " << p.id
+        << " ID " << match.worldState.backMovementID
+        << " -> (" << match.worldState.backPosX << ", " << match.worldState.backPosY
+        << ") Motivo: " << reason << std::endl;
+
+    if (countAsIrregularity) {
+        RegisterIrregularity(match, playerIndex, reason);
     }
 }
 
@@ -208,6 +264,14 @@ void Server::ProcessPackets() {
                     match.clientConnected[i] = false;
                     match.worldState.players[i].posX = 100 + (i * 400);
                     match.worldState.players[i].posY = 300;
+
+                    // Al reiniciar la sala, la ultima posicion valida vuelve al spawn
+                    match.lastValidPosX[i] = match.worldState.players[i].posX;
+                    match.lastValidPosY[i] = match.worldState.players[i].posY;
+                    match.pendingMovements[i].clear();
+                    match.lastProcessedMovementID[i] = 0;
+                    match.movementCorrectionPending[i] = false;
+                    match.correctionBackMovementID[i] = 0;
                 }
                 return;
             }
@@ -331,17 +395,79 @@ void Server::ProcessPackets() {
                 match.lastTimestamps[idx] = in.timestamp;
                 match.playerInputs[idx] = in.inputMask;
 
-                if (in.movementID > match.lastProcessedMovementID[idx]) {
-                    match.lastProcessedMovementID[idx] = in.movementID;
-                    match.worldState.players[idx].lastProcessedMovementID = in.movementID;
+                if (in.hasPredictedPosition) {
+                    ClientMovementSnapshot movement;
+                    movement.movementID = in.movementID;
+                    movement.timestamp = in.timestamp;
+                    movement.inputMask = in.inputMask;
+                    movement.posX = in.predictedPosX;
+                    movement.posY = in.predictedPosY;
+
+                    // Guardamos la posicion predicha, pero no se confirma hasta que ValidateMovements la revise.
+                    InsertMovementSnapshot(match, idx, movement);
                 }
             }
             });
     }
 }
 
-// colision balas/mapa/jugadores/muerte
-void Server::UpdatePhysics(MatchData& match) {
+void Server::InsertMovementSnapshot(MatchData& match, short playerIndex, const ClientMovementSnapshot& movement) {
+    if (movement.movementID <= match.lastProcessedMovementID[playerIndex]) {
+        return;
+    }
+
+    // Si acabamos de hacer BACK por respawn o correccion, pueden llegar paquetes antiguos por UDP.
+    // Esos paquetes se ignoran sin irregularidad hasta que llegue una posicion cercana al BACK.
+    if (match.movementCorrectionPending[playerIndex]) {
+        short diffX = movement.posX - match.lastValidPosX[playerIndex];
+        short diffY = movement.posY - match.lastValidPosY[playerIndex];
+
+        bool nearBackPosition =
+            std::abs((int)diffX) <= MOVEMENT_VALIDATION_TOLERANCE &&
+            std::abs((int)diffY) <= MOVEMENT_VALIDATION_TOLERANCE;
+
+        if (!nearBackPosition) {
+            std::cout << "[RECONCILIACION] paquete antiguo ignorado tras BACK jugador "
+                << match.worldState.players[playerIndex].id
+                << " movementID " << movement.movementID << std::endl;
+            return;
+        }
+
+        // El cliente ya ha vuelto a la posicion corregida y empieza a mandar movimientos nuevos.
+        match.movementCorrectionPending[playerIndex] = false;
+
+        if (match.worldState.movementBackRequired &&
+            match.worldState.backPlayerID == match.worldState.players[playerIndex].id) {
+            match.worldState.movementBackRequired = false;
+            match.worldState.backPlayerID = 0;
+            match.worldState.backMovementID = 0;
+            match.worldState.backPosX = 0;
+            match.worldState.backPosY = 0;
+        }
+    }
+
+    for (std::vector<ClientMovementSnapshot>::iterator it = match.pendingMovements[playerIndex].begin();
+        it != match.pendingMovements[playerIndex].end();
+        ++it) {
+
+        if (it->movementID == movement.movementID) {
+            return;
+        }
+
+        if (it->movementID > movement.movementID) {
+            match.pendingMovements[playerIndex].insert(it, movement);
+            return;
+        }
+    }
+
+    match.pendingMovements[playerIndex].push_back(movement);
+}
+
+bool Server::CheckGround(short x, short y, short w, short h) {
+    return CheckTileCollision(x, y + 1, w, h);
+}
+
+void Server::ValidateMovements(MatchData& match) {
     if (match.worldState.isGameOver) return;
 
     for (short i = 0; i < 2; i++) {
@@ -350,40 +476,92 @@ void Server::UpdatePhysics(MatchData& match) {
 
         p.isTaunting = (mask & INPUT_TAUNT) != 0;
 
-        p.velY += 1; // gravedad
-        p.velX = 0;
+        if (mask & INPUT_LEFT) p.facingRight = false;
+        if (mask & INPUT_RIGHT) p.facingRight = true;
 
-        if (mask & INPUT_LEFT) { p.velX = -5; p.facingRight = false; }
-        if (mask & INPUT_RIGHT) { p.velX = 5; p.facingRight = true; }
-        if ((mask & INPUT_JUMP) && p.onGround) { p.velY = -15; p.onGround = false; }
+        while (!match.pendingMovements[i].empty()) {
+            ClientMovementSnapshot movement = match.pendingMovements[i].front();
+            match.pendingMovements[i].erase(match.pendingMovements[i].begin());
 
-        p.posX += p.velX;
-        if (CheckTileCollision(p.posX, p.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
-			p.posX -= p.velX; // choque horizontal
-            p.velX = 0;
-        }
-
-        // si estamos cayendo onGround siempre false
-        p.onGround = false;
-
-        p.posY += p.velY;
-        if (CheckTileCollision(p.posX, p.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
-			p.posY -= p.velY; // choque vertical
-
-            // Si caemos y onGround es true
-            if (p.velY > 0) {
-                p.onGround = true;
+            if (movement.movementID <= match.lastProcessedMovementID[i]) {
+                continue;
             }
-            p.velY = 0; // frenamos
-        }
 
-		// Si el jugador cae al vacio muere
+            // Si el servidor acaba de hacer BACK, los paquetes que sigan lejos de la posicion corregida son antiguos.
+            // Se descartan sin irregularidad porque no son cheating, son paquetes UDP anteriores al respawn/correccion.
+            if (match.movementCorrectionPending[i]) {
+                short diffBackX = movement.posX - match.lastValidPosX[i];
+                short diffBackY = movement.posY - match.lastValidPosY[i];
 
-        if (p.posY > 1000) {
-            short rivalID = (i == 0) ? match.worldState.players[1].id : match.worldState.players[0].id;
-            HandlePlayerDeath(match, i, rivalID);
+                bool nearBackPosition =
+                    std::abs((int)diffBackX) <= MOVEMENT_VALIDATION_TOLERANCE &&
+                    std::abs((int)diffBackY) <= MOVEMENT_VALIDATION_TOLERANCE;
+
+                if (!nearBackPosition) {
+                    match.pendingMovements[i].clear();
+                    std::cout << "[RECONCILIACION] movimiento antiguo descartado tras BACK jugador "
+                        << p.id << std::endl;
+                    break;
+                }
+
+                match.movementCorrectionPending[i] = false;
+
+                if (match.worldState.movementBackRequired &&
+                    match.worldState.backPlayerID == p.id) {
+                    match.worldState.movementBackRequired = false;
+                    match.worldState.backPlayerID = 0;
+                    match.worldState.backMovementID = 0;
+                    match.worldState.backPosX = 0;
+                    match.worldState.backPosY = 0;
+                }
+            }
+
+            short diffX = movement.posX - match.lastValidPosX[i];
+            short diffY = movement.posY - match.lastValidPosY[i];
+
+            bool distanceOk =
+                std::abs((int)diffX) <= MOVEMENT_VALIDATION_TOLERANCE &&
+                std::abs((int)diffY) <= MOVEMENT_VALIDATION_TOLERANCE;
+
+            bool mapOk = !CheckTileCollision(movement.posX, movement.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
+
+            if (!distanceOk || !mapOk) {
+                SetBackCorrection(match, i, "movimiento BAD, vuelve al ultimo ID valido", true);
+                break;
+            }
+
+            short previousX = p.posX;
+            short previousY = p.posY;
+
+            // Movimiento OK:
+            // El servidor acepta la posicion predicha y la convierte en estado oficial.
+            p.posX = movement.posX;
+            p.posY = movement.posY;
+            p.velX = p.posX - previousX;
+            p.velY = p.posY - previousY;
+            p.onGround = CheckGround(p.posX, p.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
+
+            match.lastValidPosX[i] = p.posX;
+            match.lastValidPosY[i] = p.posY;
+            match.lastProcessedMovementID[i] = movement.movementID;
+            match.worldState.players[i].lastProcessedMovementID = movement.movementID;
+
+            if (p.posY > 1000) {
+                short rivalID = (i == 0) ? match.worldState.players[1].id : match.worldState.players[0].id;
+                HandlePlayerDeath(match, i, rivalID);
+                break;
+            }
         }
     }
+}
+
+// colision balas/mapa/jugadores/muerte
+void Server::UpdatePhysics(MatchData& match) {
+    if (match.worldState.isGameOver) return;
+
+    // Validamos las posiciones predichas que han enviado los clientes.
+    // Si son OK, se convierten en estado oficial. Si son BAD, se responde con BACK/ID.
+    ValidateMovements(match);
 
     // Se mueven las balas activas
     for (short i = 0; i < MAX_BULLETS; i++) {
@@ -468,7 +646,7 @@ void Server::BroadcastState(MatchData& match) {
     match.worldState.timestamp = match.serverClock.getElapsedTime().asMilliseconds();
 
     for (short i = 0; i < 2; i++) {
-        match.worldState.players[i].lastProcessedMovementID = match.lastProcessedMovementID[i];
+        match.worldState.players[i].lastProcessedMovementID = (unsigned short)match.lastProcessedMovementID[i];
 
         if (match.clientConnected[i] && match.clientIPs[i].has_value()) {
             udpSocket.send(&match.worldState, sizeof(S2C_StatePacket), match.clientIPs[i].value(), match.clientPorts[i]);
@@ -525,6 +703,16 @@ void Server::HandlePlayerDeath(MatchData& match, short playerIndex, short killer
         match.worldState.players[playerIndex].posY = RESPAWN_POS_Y;
         match.worldState.players[playerIndex].velX = 0;
         match.worldState.players[playerIndex].velY = 0;
+        match.worldState.players[playerIndex].onGround = CheckGround(RESPAWN_POS_X, RESPAWN_POS_Y, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
+
+        // El respawn es una posicion valida nueva del servidor.
+        match.lastValidPosX[playerIndex] = RESPAWN_POS_X;
+        match.lastValidPosY[playerIndex] = RESPAWN_POS_Y;
+        match.playerInputs[playerIndex] = INPUT_NONE;
+        match.pendingMovements[playerIndex].clear();
+
+        // El respawn obliga a reconciliar con BACK, pero NO es una irregularidad.
+        SetBackCorrection(match, playerIndex, "respawn despues de muerte", false);
     }
 }
 
