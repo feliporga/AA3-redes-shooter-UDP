@@ -82,6 +82,8 @@ private:
     void LoadMap();
 
     // Predicción, reconciliación e interpolación del movimiento online
+    // Simula un tick de movimiento local; se reutiliza para prediccion y para re-simular inputs pendientes.
+    void SimulateLocalMovement(short inputMask, Transform& transform, short& velX, short& velY, bool& onGround);
     void ApplyLocalPrediction(short inputMask);
     void ReconcileLocalPlayer(const PlayerState& serverPlayer);
     void AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp);

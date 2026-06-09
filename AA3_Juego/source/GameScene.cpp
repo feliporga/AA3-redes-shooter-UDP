@@ -159,51 +159,65 @@ void GameScene::InitializeLocalPredictionFromServer(const PlayerState& serverPla
     localPredictedOnGround = serverPlayer.onGround;
 }
 
-void GameScene::ApplyLocalPrediction(short inputMask) {
-    if (!hasInitialServerState || NM.myPlayerID == 0) return;
+// Misma simulacion que usa el cliente para predecir y reconciliar: gravedad, input y colisiones.
+void GameScene::SimulateLocalMovement(short inputMask, Transform& transform, short& velX, short& velY, bool& onGround) {
+    short oldX = (short)transform.position.x;
+    short oldY = (short)transform.position.y;
 
-    short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
-    Transform& t = playerModels[localIndex].transform;
+    velY += 1; // gravedad
 
-    short oldX = (short)t.position.x;
-    short oldY = (short)t.position.y;
+    // El input horizontal se convierte en velocidad local antes de recibir confirmacion del servidor.
+    bool movingLeft = (inputMask & INPUT_LEFT) != 0;
+    bool movingRight = (inputMask & INPUT_RIGHT) != 0;
 
-    localPredictedVelY += 1; // gravedad
-    localPredictedVelX = 0;
+    if (movingLeft && !movingRight) velX = -(short)LOCAL_PREDICTION_SPEED;
+    else if (movingRight && !movingLeft) velX = (short)LOCAL_PREDICTION_SPEED;
+    else velX = 0;
 
-    if (inputMask & INPUT_LEFT) localPredictedVelX = -5;
-    if (inputMask & INPUT_RIGHT) localPredictedVelX = 5;
-
-    if ((inputMask & INPUT_JUMP) && localPredictedOnGround) {
-        localPredictedVelY = -15;
-        localPredictedOnGround = false;
+    // El salto solo se acepta localmente si la ultima simulacion cree que estamos en el suelo.
+    if ((inputMask & INPUT_JUMP) && onGround) {
+        velY = -15;
+        onGround = false;
     }
 
-    t.position.x += localPredictedVelX;
+    transform.position.x += velX;
 
-    if (CheckLocalTileCollision((short)t.position.x, (short)t.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
-        t.position.x = (float)oldX;
-        localPredictedVelX = 0;
+    // Primero se resuelve el eje X para que la prediccion choque parecido al servidor.
+    if (CheckLocalTileCollision((short)transform.position.x, (short)transform.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
+        transform.position.x = (float)oldX;
+        velX = 0;
     }
 
-    localPredictedOnGround = false;
+    onGround = false;
+    transform.position.y += velY;
 
-    t.position.y += localPredictedVelY;
+    // Despues se resuelve el eje Y; si caemos contra el suelo marcamos onGround.
+    if (CheckLocalTileCollision((short)transform.position.x, (short)transform.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
+        transform.position.y = (float)oldY;
 
-    if (CheckLocalTileCollision((short)t.position.x, (short)t.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H)) {
-        t.position.y = (float)oldY;
-
-        if (localPredictedVelY > 0) {
-            localPredictedOnGround = true;
+        if (velY > 0) {
+            onGround = true;
         }
 
-        localPredictedVelY = 0;
+        velY = 0;
     }
     else {
-        localPredictedOnGround = CheckLocalGround((short)t.position.x, (short)t.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
+        onGround = CheckLocalGround((short)transform.position.x, (short)transform.position.y, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
     }
 }
 
+void GameScene::ApplyLocalPrediction(short inputMask) {
+    // Prediccion local: el jugador se mueve inmediatamente sin esperar al siguiente snapshot del servidor.
+    if (!hasInitialServerState || NM.myPlayerID == 0) return;
+
+    short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
+    SimulateLocalMovement(
+        inputMask,
+        playerModels[localIndex].transform,
+        localPredictedVelX,
+        localPredictedVelY,
+        localPredictedOnGround);
+}
 void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
 
@@ -233,7 +247,9 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         return;
     }
 
-    // Se eliminan los movimientos que el servidor ya ha validado como correctos.
+    // Reconciliacion normal:
+    // volvemos al estado autoritativo del servidor, eliminamos los inputs ya confirmados
+    // y re-simulamos los inputs que todavia estan pendientes.
     for (std::size_t i = 0; i < pendingMovements.size(); ) {
         if (pendingMovements[i].movementID <= serverPlayer.lastProcessedMovementID) {
             pendingMovements.erase(pendingMovements.begin() + i);
@@ -242,8 +258,27 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
             i++;
         }
     }
-}
 
+    // Punto de partida autoritativo: el servidor manda la posicion/velocidad hasta el ultimo input validado.
+    playerModels[localIndex].transform.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
+    localPredictedVelX = serverPlayer.velX;
+    localPredictedVelY = serverPlayer.velY;
+    localPredictedOnGround = serverPlayer.onGround;
+
+    // Re-aplicamos los inputs que el cliente ya habia predicho pero el servidor aun no ha confirmado.
+    for (std::size_t i = 0; i < pendingMovements.size(); i++) {
+        SimulateLocalMovement(
+            pendingMovements[i].inputMask,
+            playerModels[localIndex].transform,
+            localPredictedVelX,
+            localPredictedVelY,
+            localPredictedOnGround);
+
+        // Actualizamos la posicion predicha asociada al input por si se vuelve a validar desde este estado corregido.
+        pendingMovements[i].posX = (short)playerModels[localIndex].transform.position.x;
+        pendingMovements[i].posY = (short)playerModels[localIndex].transform.position.y;
+    }
+}
 void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp) {
     RemoteSnapshot newSnapshot;
     newSnapshot.timestamp = timestamp;
@@ -296,7 +331,10 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
     }
 
     if (remoteSnapshots.size() == 1) {
-        playerModels[enemyIndex].transform.position = remoteSnapshots[0].position;
+        // Si solo hay un snapshot, esperamos a que entre en la ventana de render para evitar un salto inicial.
+        if ((int)remoteSnapshots[0].timestamp <= renderTimestamp) {
+            playerModels[enemyIndex].transform.position = remoteSnapshots[0].position;
+        }
         return;
     }
 
