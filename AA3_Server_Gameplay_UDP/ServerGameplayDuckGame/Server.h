@@ -18,13 +18,13 @@
 #include <fstream>
 #include <sstream>
 
-// Tiempo maximo sin saber nada de un jugador antes de hacerlo perder
 #define PLAYER_TIMEOUT_SECONDS 5
-// Este tiempo marca cuando aparece el aviso por consola
 #define PLAYER_WARNING_SECONDS 2
 
 // Tolerancia de validacion de movimiento para permitir perdida de paquetes y pequeñas diferencias de simulacion
-#define MOVEMENT_VALIDATION_TOLERANCE 80
+#define MOVEMENT_VALIDATION_TOLERANCE 15
+#define MINIMUM_VALIDATION_TIME_TOLERANCE 16
+#define MAXIMUM_VALIDATION_TIME_TOLERANCE 250
 
 class Server {
 private:
@@ -37,17 +37,18 @@ private:
     };
 
     struct MatchData {
-        // arrays de 2 para no usar ram extra
         std::optional<sf::IpAddress> clientIPs[2];
         unsigned short clientPorts[2];
         bool clientConnected[2];
 
         unsigned int lastTimestamps[2];
+
+        // Timestamp del ultimo movimiento que el servidor acepto como valido.
+        unsigned int lastValidMovementTimestamp[2];
         short playerInputs[2];
 
         std::vector<unsigned int> processedCriticalPackets[2];
 
-        // ultimo id que procesamos para reconciliar
         unsigned int lastProcessedMovementID[2];
 
         // Movimientos predichos que envia el cliente para validar y poder hacer BACK

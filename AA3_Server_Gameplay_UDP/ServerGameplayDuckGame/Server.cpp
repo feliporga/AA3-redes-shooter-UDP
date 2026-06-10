@@ -52,6 +52,9 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.clientPorts[i] = 0;
         match.clientConnected[i] = false;
         match.lastTimestamps[i] = 0;
+
+        // Todavia no hay ningun movimiento validado, asi que el primer paquete parte desde cero.
+        match.lastValidMovementTimestamp[i] = 0;
         match.timeoutWarningShown[i] = false;
         match.playerInputs[i] = INPUT_NONE;
         match.processedCriticalPackets[i].clear();
@@ -271,6 +274,9 @@ void Server::ProcessPackets() {
                     match.pendingMovements[i].clear();
                     match.lastProcessedMovementID[i] = 0;
                     match.movementCorrectionPending[i] = false;
+
+                    // Al reiniciar partida, tambien se reinicia la referencia temporal de validacion.
+                    match.lastValidMovementTimestamp[i] = 0;
                     match.correctionBackMovementID[i] = 0;
                 }
                 return;
@@ -516,12 +522,28 @@ void Server::ValidateMovements(MatchData& match) {
                 }
             }
 
-            short diffX = movement.posX - match.lastValidPosX[i];
-            short diffY = movement.posY - match.lastValidPosY[i];
+            // Calculamos cuanto tiempo ha pasado desde el ultimo movimiento valido.
+            int elapsedMs = MINIMUM_VALIDATION_TIME_TOLERANCE;
 
-            bool distanceOk =
-                std::abs((int)diffX) <= MOVEMENT_VALIDATION_TOLERANCE &&
-                std::abs((int)diffY) <= MOVEMENT_VALIDATION_TOLERANCE;
+            if (match.lastValidMovementTimestamp[i] > 0 &&
+                movement.timestamp > match.lastValidMovementTimestamp[i]) {
+                elapsedMs = movement.timestamp - match.lastValidMovementTimestamp[i];
+            }
+
+            // Limitamos el rango para evitar validaciones raras por paquetes duplicados, perdidos o pausas grandes.
+            if (elapsedMs < MINIMUM_VALIDATION_TIME_TOLERANCE) elapsedMs = MINIMUM_VALIDATION_TIME_TOLERANCE;
+            if (elapsedMs > MAXIMUM_VALIDATION_TIME_TOLERANCE) elapsedMs = MAXIMUM_VALIDATION_TIME_TOLERANCE;
+
+            float elapsedTicks = elapsedMs / (float)MINIMUM_VALIDATION_TIME_TOLERANCE;
+
+            int diffX = movement.posX - match.lastValidPosX[i];
+            int diffY = movement.posY - match.lastValidPosY[i];
+
+            // Distancia maxima aceptada segun velocidad horizontal, movimiento vertical y tolerancia por red.
+            int maxHorizontalDistance = (int)(5.0f * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
+            int maxVerticalDistance = (int)(16.0f * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
+
+            bool distanceOk = std::abs(diffX) <= maxHorizontalDistance && std::abs(diffY) <= maxVerticalDistance;
 
             bool mapOk = !CheckTileCollision(movement.posX, movement.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
 
@@ -533,7 +555,6 @@ void Server::ValidateMovements(MatchData& match) {
             short previousX = p.posX;
             short previousY = p.posY;
 
-            // Movimiento OK:
             // El servidor acepta la posicion predicha y la convierte en estado oficial.
             p.posX = movement.posX;
             p.posY = movement.posY;
@@ -543,6 +564,9 @@ void Server::ValidateMovements(MatchData& match) {
 
             match.lastValidPosX[i] = p.posX;
             match.lastValidPosY[i] = p.posY;
+
+            // Guardamos tambien el tiempo aceptado para validar el siguiente movimiento contra este punto.
+            match.lastValidMovementTimestamp[i] = movement.timestamp;
             match.lastProcessedMovementID[i] = movement.movementID;
             match.worldState.players[i].lastProcessedMovementID = movement.movementID;
 
@@ -560,7 +584,6 @@ void Server::UpdatePhysics(MatchData& match) {
     if (match.worldState.isGameOver) return;
 
     // Validamos las posiciones predichas que han enviado los clientes.
-    // Si son OK, se convierten en estado oficial. Si son BAD, se responde con BACK/ID.
     ValidateMovements(match);
 
     // Se mueven las balas activas

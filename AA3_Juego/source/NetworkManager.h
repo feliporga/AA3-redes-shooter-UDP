@@ -71,6 +71,10 @@ public:
     S2C_StatePacket lastState;
     bool newStateReceived = false;
 
+    // Estados recibidos del servidor.
+    // Se guardan en cola para que la interpolacion no pierda snapshots si llegan varios entre dos frames.
+    std::vector<S2C_StatePacket> pendingStates;
+
     unsigned short dynamicUdpPort = SERVER_UDP_PORT;
     // TCP
 
@@ -184,6 +188,9 @@ public:
 
                     lastState = S2C_StatePacket{};
                     newStateReceived = false;
+
+                    // Al empezar una partida nueva no queremos procesar snapshots de la partida anterior.
+                    pendingStates.clear();
                     unackedPackets.clear();
                     nextPacketID = 1;
 
@@ -268,6 +275,9 @@ public:
                 if (receivedState.matchID != currentMatchID) continue;
 
                 lastState = receivedState;
+
+                // Guardamos cada snapshot recibido para que GameScene pueda alimentar la interpolacion con todos ellos.
+                pendingStates.push_back(receivedState);
                 newStateReceived = true;
             }
             else if (type == (short)PacketType::Ack) {

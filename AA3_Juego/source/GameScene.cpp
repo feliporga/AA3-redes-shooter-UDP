@@ -218,6 +218,7 @@ void GameScene::ApplyLocalPrediction(short inputMask) {
         localPredictedVelY,
         localPredictedOnGround);
 }
+
 void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
 
@@ -279,6 +280,7 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         pendingMovements[i].posY = (short)playerModels[localIndex].transform.position.y;
     }
 }
+
 void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp) {
     RemoteSnapshot newSnapshot;
     newSnapshot.timestamp = timestamp;
@@ -467,7 +469,15 @@ void GameScene::Update() {
 
     // La escena se actualiza con los datos que manda el servidor
     if (NM.newStateReceived) {
-        if (NM.lastState.timestamp >= lastServerTimestamp) {
+        // Procesamos todos los snapshots acumulados, no solo el ultimo recibido. Asi el buffer de interpolacion del rival tiene mas puntos y evita saltos visuales.
+        for (std::size_t stateIndex = 0; stateIndex < NM.pendingStates.size(); stateIndex++) {
+            NM.lastState = NM.pendingStates[stateIndex];
+
+            // Si UDP entrega un snapshot antiguo, no lo usamos para pisar el estado actual.
+            if (NM.lastState.timestamp < lastServerTimestamp) {
+                continue;
+            }
+
             lastServerTimestamp = NM.lastState.timestamp;
 
             // Taunt
@@ -561,11 +571,12 @@ void GameScene::Update() {
                 bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
             }
         }
+        // Una vez procesada la cola, la vaciamos para esperar los siguientes snapshots.
+        NM.pendingStates.clear();
         NM.newStateReceived = false;
     }
 
-    // Se suaviza el movimiento del rival del rival
-    // El rival se dibuja entre estados guardados en vez de saltar a la ultima posicion
+    // Se suaviza el movimiento del rival, se dibuja entre estados guardados en vez de saltar a la ultima posicion
     InterpolateRemotePlayer(currentTime);
 
     for (short i = 0; i < 2; i++) {
