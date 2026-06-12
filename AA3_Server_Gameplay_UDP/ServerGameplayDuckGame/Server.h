@@ -21,6 +21,11 @@
 #define PLAYER_TIMEOUT_SECONDS 5
 #define PLAYER_WARNING_SECONDS 2
 
+// Sistema PING/PONG UDP como en la teoria: el servidor pregunta y el cliente responde.
+#define PING_INTERVAL_SECONDS 1
+#define PONG_TIMEOUT_SECONDS 5
+#define PONG_WARNING_SECONDS 2
+
 // Tolerancia de validacion de movimiento para permitir perdida de paquetes y pequeñas diferencias de simulacion
 #define MOVEMENT_VALIDATION_TOLERANCE 15
 #define MINIMUM_VALIDATION_TIME_TOLERANCE 16
@@ -67,7 +72,18 @@ private:
         S2C_StatePacket worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
-        // Este reloj mide cuanto lleva cada jugador sin mandar nada
+
+        // Sistema PING/PONG:
+        // pingClock controla cada cuanto el servidor envia Ping.
+        // pongClock mide cuanto tiempo hace que no recibimos Pong de cada jugador.
+        sf::Clock pingClock;
+        sf::Clock pongClock[2];
+        bool waitingPong[2];
+        unsigned short nextPingID[2];
+        unsigned short lastPongID[2];
+
+        // Este reloj mide cuanto lleva cada jugador sin mandar nada.
+        // Se mantiene por compatibilidad, pero el timeout real ahora lo controla el PONG.
         sf::Clock inactivityClock[2];
         bool pendingDelete;
         // Esto evita repetir el aviso por consola muchas veces seguidas
@@ -98,6 +114,8 @@ private:
     void InitMatch(MatchData& match, unsigned int matchID);
     void CleanupMatches();
     void CheckTimeouts(MatchData& match);
+    void SendPingPackets(MatchData& match);
+    void RegisterPong(MatchData& match, short playerIndex, unsigned short pingID);
 
     std::vector<std::vector<short>> levelMap;
     short mapRows = 0;

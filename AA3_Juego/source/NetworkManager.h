@@ -92,7 +92,7 @@ public:
     }
 
     void SendCheckMapVersion() {
-        short version = 0; // Por defecto asumimos que no hay versi�n
+        short version = 0; // Por defecto asumimos que no hay versión
         std::ifstream versionFile("resources/mapa_version.txt");
         if (versionFile.is_open()) {
             versionFile >> version;
@@ -142,7 +142,7 @@ public:
                         mapFile.close();
                     }
 
-                    // Actualizamos el txt de la versi�n local
+                    // Actualizamos el txt de la versión local
                     std::ofstream versionFile("resources/mapa_version.txt");
                     if (versionFile.is_open()) {
                         versionFile << newVersion;
@@ -244,7 +244,7 @@ public:
         packet.inputMask = mask;
         packet.matchID = currentMatchID;
 
-        // Los disparos usan packetID para ACK, no forman parte de la reconciliaci�n de movimiento
+        // Los disparos usan packetID para ACK, no forman parte de la reconciliación de movimiento
         packet.movementID = 0;
 
         // Los paquetes criticos no validan posicion, solo la accion concreta
@@ -256,6 +256,21 @@ public:
         unackedPackets.push_back({ packet, time });
     }
 
+    void SendUDPPong(unsigned short pingID, unsigned int time) {
+        if (!serverUdpIp.has_value()) return;
+        if (myPlayerID == 0 || currentMatchID == 0) return;
+
+        C2S_PongPacket pong;
+        pong.flags = NORMAL_PACKET;
+        pong.matchID = currentMatchID;
+        pong.playerID = myPlayerID;
+        pong.pingID = pingID;
+        pong.timestamp = time;
+
+        udpSocket.send(&pong, sizeof(C2S_PongPacket), serverUdpIp.value(), dynamicUdpPort);
+        std::cout << "[CLIENTE] PONG enviado al servidor UDP. PingID: " << pingID << std::endl;
+    }
+
     void ListenUDP() {
         char buffer[1024];
         std::size_t received;
@@ -263,10 +278,25 @@ public:
         unsigned short port;
 
         while (udpSocket.receive(buffer, sizeof(buffer), received, sender, port) == sf::Socket::Status::Done) {
+            if (received < sizeof(uint8_t) + sizeof(short)) continue;
+
             short type;
             std::memcpy(&type, buffer + 1, sizeof(short)); // Saltamos el byte de flags
 
-            if (type == (short)PacketType::UpdateBoard) {
+            if (type == (short)PacketType::Ping) {
+                if (received < sizeof(S2C_PingPacket)) continue;
+
+                S2C_PingPacket ping;
+                std::memcpy(&ping, buffer, sizeof(S2C_PingPacket));
+
+                if (ping.matchID != currentMatchID) continue;
+                if (ping.playerID != 0 && ping.playerID != myPlayerID) continue;
+
+                // PING/PONG:
+                // El servidor pregunta si seguimos vivos y el cliente responde inmediatamente con PONG.
+                SendUDPPong(ping.pingID, ping.timestamp);
+            }
+            else if (type == (short)PacketType::UpdateBoard) {
                 if (received < sizeof(S2C_StatePacket)) continue;
 
                 S2C_StatePacket receivedState;
@@ -287,11 +317,11 @@ public:
                 for (size_t i = 0; i < unackedPackets.size(); ) {
                     if (unackedPackets[i].packet.packetID == ack.ackedPacketID) {
                         std::cout << "[CLIENTE] ACK recibido (ID: " << ack.ackedPacketID << "). Borrando de la cola." << std::endl;
-                        // Borramos usando el iterador begin() m�s el �ndice actual
+                        // Borramos usando el iterador begin() más el índice actual
                         unackedPackets.erase(unackedPackets.begin() + i);
                     }
                     else {
-                        // Solo avanzamos el �ndice si NO hemos borrado nada
+                        // Solo avanzamos el índice si NO hemos borrado nada
                         i++;
                     }
                 }

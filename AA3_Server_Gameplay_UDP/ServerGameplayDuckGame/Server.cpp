@@ -55,6 +55,13 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
 
         // Todavia no hay ningun movimiento validado, asi que el primer paquete parte desde cero.
         match.lastValidMovementTimestamp[i] = 0;
+
+        // PING/PONG empieza limpio para cada jugador
+        match.pongClock[i].restart();
+        match.waitingPong[i] = false;
+        match.nextPingID[i] = 1;
+        match.lastPongID[i] = 0;
+
         match.timeoutWarningShown[i] = false;
         match.playerInputs[i] = INPUT_NONE;
         match.processedCriticalPackets[i].clear();
@@ -117,6 +124,10 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
 
     match.serverClock.restart();
     match.endClock.restart();
+
+    // El reloj de Ping empieza al crear la partida.
+    match.pingClock.restart();
+
     match.pendingDelete = false;
 }
 
@@ -220,6 +231,10 @@ void Server::Run() {
             // Las partidas se protegen mientras se actualizan fisicas y estados
             std::unique_lock<std::mutex> lock(dataMutex);
             for (std::pair<const unsigned int, MatchData>& pair : matches) {
+                // Sistema PING/PONG:
+                // el servidor pregunta periodicamente y luego comprueba si ha llegado el Pong.
+                SendPingPackets(pair.second);
+
                 // Se comprueba si alguien se ha desconectado antes de seguir la partida
                 CheckTimeouts(pair.second);
                 UpdatePhysics(pair.second);
@@ -240,10 +255,55 @@ void Server::ProcessPackets() {
     unsigned short senderPort;
 
     while (udpSocket.receive(buffer, sizeof(buffer), received, sender, senderPort) == sf::Socket::Status::Done) {
-        if (received < sizeof(C2S_InputPacket)) continue;
+        if (received < sizeof(uint8_t) + sizeof(short)) continue;
         if (!sender.has_value()) continue;
 
         uint8_t flags = buffer[0];
+
+        short packetType;
+        std::memcpy(&packetType, buffer + 1, sizeof(short));
+
+        // PONG:
+        // El cliente responde a los Ping del servidor. Este paquete no mueve al jugador,
+        // solo demuestra que sigue vivo.
+        if (packetType == (short)PacketType::Pong) {
+            if (received < sizeof(C2S_PongPacket)) continue;
+
+            C2S_PongPacket pong;
+            std::memcpy(&pong, buffer, sizeof(C2S_PongPacket));
+
+            if (pong.matchID == 0) continue;
+
+            // El PONG tambien se procesa en la pool para seguir el mismo flujo productor-consumidor.
+            EnqueueTask([this, pong, sender, senderPort]() {
+
+                std::unique_lock<std::mutex> lock(dataMutex);
+
+                if (matches.find(pong.matchID) == matches.end()) {
+                    return;
+                }
+
+                MatchData& match = matches[pong.matchID];
+
+                short idx = pong.playerID - 1;
+                if (idx < 0 || idx >= 2) return;
+
+                // Solo aceptamos el PONG si viene del mismo origen UDP que ya estaba registrado para ese jugador.
+                if (!match.clientConnected[idx] ||
+                    !match.clientIPs[idx].has_value() ||
+                    match.clientIPs[idx].value() != sender.value() ||
+                    match.clientPorts[idx] != senderPort) {
+                    std::cout << "[PING/PONG] PONG rechazado por origen no registrado" << std::endl;
+                    return;
+                }
+
+                RegisterPong(match, idx, pong.pingID);
+                });
+
+            continue;
+        }
+
+        if (received < sizeof(C2S_InputPacket)) continue;
 
         C2S_InputPacket in;
         std::memcpy(&in, buffer, sizeof(C2S_InputPacket));
@@ -278,7 +338,16 @@ void Server::ProcessPackets() {
                     // Al reiniciar partida, tambien se reinicia la referencia temporal de validacion.
                     match.lastValidMovementTimestamp[i] = 0;
                     match.correctionBackMovementID[i] = 0;
+
+                    // Tambien se reinicia el estado de PING/PONG.
+                    match.pongClock[i].restart();
+                    match.waitingPong[i] = false;
+                    match.nextPingID[i] = 1;
+                    match.lastPongID[i] = 0;
+                    match.timeoutWarningShown[i] = false;
                 }
+
+                match.pingClock.restart();
                 return;
             }
 
@@ -315,6 +384,14 @@ void Server::ProcessPackets() {
                 match.clientIPs[idx] = sender;
                 match.clientPorts[idx] = senderPort;
                 match.clientConnected[idx] = true;
+
+                // Al enganchar el jugador empieza el control Ping/Pong para ese cliente.
+                match.pongClock[idx].restart();
+                match.waitingPong[idx] = false;
+                match.nextPingID[idx] = 1;
+                match.lastPongID[idx] = 0;
+                match.timeoutWarningShown[idx] = false;
+
                 std::cout << "[UDP] jugador " << in.playerID << " enganchado" << std::endl;
             }
             else if (!match.clientIPs[idx].has_value() ||
@@ -327,9 +404,8 @@ void Server::ProcessPackets() {
                 return;
             }
 
-            // Un paquete recibido del jugador indica que sigue conectado
+            // Un paquete recibido del jugador indica actividad, pero el timeout real de conexion se valida con PING/PONG.
             match.inactivityClock[idx].restart();
-            match.timeoutWarningShown[idx] = false;
 
             // Solo se aceptan paquetes normales o paquetes criticos definidos por el juego
             if (flags != NORMAL_PACKET && flags != CRITICAL_PACKET) {
@@ -752,6 +828,53 @@ void Server::CleanupMatches() {
     }
 }
 
+void Server::SendPingPackets(MatchData& match) {
+    if (match.worldState.isGameOver) return;
+
+    // No enviamos Ping hasta que los dos jugadores esten conectados a la partida UDP.
+    if (!match.clientConnected[0] || !match.clientConnected[1]) return;
+
+    if (match.pingClock.getElapsedTime().asSeconds() < PING_INTERVAL_SECONDS) return;
+    match.pingClock.restart();
+
+    for (short i = 0; i < 2; i++) {
+        if (!match.clientConnected[i] || !match.clientIPs[i].has_value()) continue;
+
+        S2C_PingPacket ping;
+        ping.matchID = match.worldState.matchID;
+        ping.playerID = match.worldState.players[i].id;
+        ping.pingID = match.nextPingID[i]++;
+        ping.timestamp = match.serverClock.getElapsedTime().asMilliseconds();
+
+        udpSocket.send(&ping, sizeof(S2C_PingPacket), match.clientIPs[i].value(), match.clientPorts[i]);
+
+        match.waitingPong[i] = true;
+
+        std::cout << "[PING/PONG] PING enviado a jugador "
+            << match.worldState.players[i].id
+            << " pingID " << ping.pingID << std::endl;
+    }
+}
+
+void Server::RegisterPong(MatchData& match, short playerIndex, unsigned short pingID) {
+    if (playerIndex < 0 || playerIndex >= 2) return;
+    if (match.worldState.isGameOver) return;
+
+    // Si llega un Pong repetido o antiguo, se ignora.
+    if (pingID <= match.lastPongID[playerIndex]) {
+        return;
+    }
+
+    match.lastPongID[playerIndex] = pingID;
+    match.waitingPong[playerIndex] = false;
+    match.pongClock[playerIndex].restart();
+    match.timeoutWarningShown[playerIndex] = false;
+
+    std::cout << "[PING/PONG] PONG recibido de jugador "
+        << match.worldState.players[playerIndex].id
+        << " pingID " << pingID << std::endl;
+}
+
 void Server::CheckTimeouts(MatchData& match) {
     // Si la partida ya acabo no hace falta mirar desconexiones
     if (match.worldState.isGameOver) return;
@@ -760,16 +883,21 @@ void Server::CheckTimeouts(MatchData& match) {
     if (!match.clientConnected[0] || !match.clientConnected[1]) return;
 
     for (short i = 0; i < 2; i++) {
-        float inactivitySeconds = match.inactivityClock[i].getElapsedTime().asSeconds();
+        // PING/PONG:
+        // Ya no usamos el movimiento como prueba principal de vida.
+        // Ahora el jugador solo se considera conectado si responde con PONG a los PING del servidor.
+        float secondsWithoutPong = match.pongClock[i].getElapsedTime().asSeconds();
 
         // Sale un aviso por consola antes de echar al jugador
-        if (inactivitySeconds > PLAYER_WARNING_SECONDS && !match.timeoutWarningShown[i]) {
+        if (secondsWithoutPong > PONG_WARNING_SECONDS && !match.timeoutWarningShown[i]) {
             match.timeoutWarningShown[i] = true;
-            std::cout << "[UDP] jugador " << match.worldState.players[i].id << " afk avisando" << std::endl;
+            std::cout << "[PING/PONG] jugador "
+                << match.worldState.players[i].id
+                << " no responde PONG, avisando" << std::endl;
         }
 
         // Si el timeout se cumple el jugador pierde y gana el rival
-        if (inactivitySeconds > PLAYER_TIMEOUT_SECONDS) {
+        if (secondsWithoutPong > PONG_TIMEOUT_SECONDS) {
             short winnerIndex = (i == 0) ? 1 : 0;
 
             match.worldState.isGameOver = true;
@@ -778,7 +906,10 @@ void Server::CheckTimeouts(MatchData& match) {
             match.pendingDelete = true;
             match.endClock.restart();
 
-            std::cout << "[UDP] timeout tiramos al jugador " << match.worldState.players[i].id << std::endl;
+            std::cout << "[PING/PONG] timeout: jugador "
+                << match.worldState.players[i].id
+                << " no ha respondido PONG. Gana jugador "
+                << match.worldState.winnerID << std::endl;
             return;
         }
     }

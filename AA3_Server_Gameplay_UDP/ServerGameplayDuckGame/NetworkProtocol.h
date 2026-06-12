@@ -43,6 +43,8 @@ enum class PacketType : short {
     ReportResult,
     ResultAcknowledge,
     Ack,
+    Ping,
+    Pong,
     SearchCasualRequest,
     SearchCompetitiveRequest,
     CancelSearchRequest,
@@ -86,6 +88,28 @@ struct S2C_AckPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Ack;
     unsigned short ackedPacketID;
+};
+
+// Paquete Ping (Servidor UDP -> Cliente)
+// El servidor lo envia de forma periodica para comprobar que el cliente sigue vivo.
+struct S2C_PingPacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::Ping;
+    unsigned short matchID = 0;
+    short playerID = 0;
+    unsigned short pingID = 0;
+    unsigned int timestamp = 0;
+};
+
+// Paquete Pong (Cliente -> Servidor UDP)
+// El cliente responde al Ping manteniendo el mismo pingID.
+struct C2S_PongPacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::Pong;
+    unsigned short matchID = 0;
+    short playerID = 0;
+    unsigned short pingID = 0;
+    unsigned int timestamp = 0;
 };
 
 struct PlayerState {
