@@ -43,6 +43,8 @@ enum class PacketType : short {
     ReportResult,
     ResultAcknowledge,
     Ack,
+    Ping,
+    Pong,
     SearchCasualRequest,
     SearchCompetitiveRequest,
     CancelSearchRequest,
@@ -74,6 +76,11 @@ struct C2S_InputPacket {
 
     // Identifica cada input normal para poder hacer predicción y reconciliación
     unsigned short movementID = 0;
+
+    // Posicion predicha por el cliente para que el servidor pueda validarla como en el tema de movimiento
+    bool hasPredictedPosition = false;
+    short predictedPosX = 0;
+    short predictedPosY = 0;
 };
 
 // Paquete de Confirmación (Servidor -> Cliente UDP)
@@ -81,6 +88,30 @@ struct S2C_AckPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Ack;
     unsigned short ackedPacketID;
+};
+
+// Paquete Ping (Servidor UDP -> Cliente)
+// El servidor lo envia de forma periodica para comprobar que el cliente sigue vivo.
+// timestamp guarda el tiempo de envio del servidor y luego sirve para calcular el RTT.
+struct S2C_PingPacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::Ping;
+    unsigned short matchID = 0;
+    short playerID = 0;
+    unsigned short pingID = 0;
+    unsigned int timestamp = 0;
+};
+
+// Paquete Pong (Cliente -> Servidor UDP)
+// El cliente responde al Ping manteniendo el mismo pingID y el mismo timestamp del Ping.
+// Asi el servidor puede calcular RTT = tiempoActualServidor - timestampPing.
+struct C2S_PongPacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::Pong;
+    unsigned short matchID = 0;
+    short playerID = 0;
+    unsigned short pingID = 0;
+    unsigned int timestamp = 0;
 };
 
 struct PlayerState {
@@ -128,5 +159,12 @@ struct S2C_StatePacket {
 
     // Indica que el game over se ha producido al alcanzar tres irregularidades
     bool gameOverByIrregularities = false;
+
+    // Datos de reconciliacion tipo BACK/ID como en el tema de movimiento
+    bool movementBackRequired = false;
+    short backPlayerID = 0;
+    unsigned short backMovementID = 0;
+    short backPosX = 0;
+    short backPosY = 0;
 };
 #pragma pack(pop)
