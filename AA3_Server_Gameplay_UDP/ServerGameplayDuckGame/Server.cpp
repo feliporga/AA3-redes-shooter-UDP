@@ -156,7 +156,7 @@ void Server::RegisterIrregularity(MatchData& match, short playerIndex, const std
         << " irregularidad " << match.irregularities[playerIndex]
         << "/" << MAX_IRREGULARITIES << ": " << reason << std::endl;
 
-    // Si acumula tres irregularidades pierde automaticamente la partida
+    // Si acumula tres irregularidades pierde  maticamente la partida
     if (match.irregularities[playerIndex] >= MAX_IRREGULARITIES) {
         short winnerIndex = (playerIndex == 0) ? 1 : 0;
 
@@ -277,31 +277,12 @@ void Server::ProcessPackets() {
             if (pong.matchID == 0) continue;
 
             // El PONG tambien se procesa en la pool para seguir el mismo flujo productor-consumidor.
-            EnqueueTask([this, pong, sender, senderPort]() {
+            // ProcessPackets solo recibe bytes y hace memcpy; la logica queda en ProcessPongPacket.
+            std::function<void()> processPongPacket = [this, pong, sender, senderPort]() {
+                ProcessPongPacket(pong, sender, senderPort);
+                };
 
-                std::unique_lock<std::mutex> lock(dataMutex);
-
-                if (matches.find(pong.matchID) == matches.end()) {
-                    return;
-                }
-
-                MatchData& match = matches[pong.matchID];
-
-                short idx = pong.playerID - 1;
-                if (idx < 0 || idx >= 2) return;
-
-                // Solo aceptamos el PONG si viene del mismo origen UDP que ya estaba registrado para ese jugador.
-                if (!match.clientConnected[idx] ||
-                    !match.clientIPs[idx].has_value() ||
-                    match.clientIPs[idx].value() != sender.value() ||
-                    match.clientPorts[idx] != senderPort) {
-                    std::cout << "[PING/PONG] PONG rechazado por origen no registrado" << std::endl;
-                    return;
-                }
-
-                RegisterPong(match, idx, pong.pingID, pong.timestamp);
-                });
-
+            EnqueueTask(processPongPacket);
             continue;
         }
 
@@ -315,213 +296,10 @@ void Server::ProcessPackets() {
         // Se prepara el procesamiento del paquete de input.
         // Los paquetes normales se encolan en la ThreadPool.
         // Los paquetes URGENT se procesan directamente para no esperar detras de movimientos normales.
-        auto processInputPacket = [this, in, flags, sender, senderPort]() {
-
-            std::unique_lock<std::mutex> lock(dataMutex);
-
-            if (matches.find(in.matchID) == matches.end()) {
-                InitMatch(matches[in.matchID], in.matchID);
-                std::cout << "[UDP SERVER] sala creada match " << in.matchID << std::endl;
-            }
-
-            MatchData& match = matches[in.matchID];
-
-            if (in.type == (short)PacketType::MatchCreatedNotification) {
-                for (short i = 0; i < 2; i++) {
-                    match.clientConnected[i] = false;
-                    match.worldState.players[i].posX = 100 + (i * 400);
-                    match.worldState.players[i].posY = 300;
-
-                    // Al reiniciar la sala, la ultima posicion valida vuelve al spawn
-                    match.lastValidPosX[i] = match.worldState.players[i].posX;
-                    match.lastValidPosY[i] = match.worldState.players[i].posY;
-                    match.pendingMovements[i].clear();
-                    match.lastProcessedMovementID[i] = 0;
-                    match.movementCorrectionPending[i] = false;
-
-                    // Al reiniciar partida, tambien se reinicia la referencia temporal de validacion.
-                    match.lastValidMovementTimestamp[i] = 0;
-                    match.correctionBackMovementID[i] = 0;
-
-                    // Tambien se reinicia el estado de PING/PONG y RTT.
-                    match.pongClock[i].restart();
-                    match.waitingPong[i] = false;
-                    match.nextPingID[i] = 1;
-                    match.lastPongID[i] = 0;
-                    match.lastPingTimestamp[i] = 0;
-                    match.lastRTT[i] = 0.0f;
-                    match.averageRTT[i] = 0.0f;
-                    match.hasRTT[i] = false;
-                    match.timeoutWarningShown[i] = false;
-                }
-
-                match.pingClock.restart();
-                return;
-            }
-
-            if (in.type != (short)PacketType::GameMove) return;
-
-            // Se busca si el origen del paquete ya pertenece a uno de los jugadores conectados
-            short senderPlayerIndex = -1;
-            for (short i = 0; i < 2; i++) {
-                if (match.clientConnected[i] &&
-                    match.clientIPs[i].has_value() &&
-                    match.clientIPs[i].value() == sender.value() &&
-                    match.clientPorts[i] == senderPort) {
-                    senderPlayerIndex = i;
-                }
-            }
-
-            short idx = in.playerID - 1;
-
-            // Un jugador ya conocido no puede enviar un identificador que no exista
-            if (idx < 0 || idx >= 2) {
-                if (senderPlayerIndex != -1) {
-                    RegisterIrregularity(match, senderPlayerIndex, "playerID no valido");
-                }
-                return;
-            }
-
-            // Un jugador no puede enviar acciones utilizando el playerID de su rival
-            if (senderPlayerIndex != -1 && senderPlayerIndex != idx) {
-                RegisterIrregularity(match, senderPlayerIndex, "intento de controlar al rival");
-                return;
-            }
-
-            if (!match.clientConnected[idx]) {
-                match.clientIPs[idx] = sender;
-                match.clientPorts[idx] = senderPort;
-                match.clientConnected[idx] = true;
-
-                // Al enganchar el jugador empieza el control Ping/Pong para ese cliente.
-                match.pongClock[idx].restart();
-                match.waitingPong[idx] = false;
-                match.nextPingID[idx] = 1;
-                match.lastPongID[idx] = 0;
-                match.lastPingTimestamp[idx] = 0;
-                match.lastRTT[idx] = 0.0f;
-                match.averageRTT[idx] = 0.0f;
-                match.hasRTT[idx] = false;
-                match.timeoutWarningShown[idx] = false;
-
-                std::cout << "[UDP] jugador " << in.playerID << " enganchado" << std::endl;
-            }
-            else if (!match.clientIPs[idx].has_value() ||
-                match.clientIPs[idx].value() != sender.value() ||
-                match.clientPorts[idx] != senderPort) {
-                // Si un origen desconocido intenta usar un slot ocupado el paquete se rechaza
-                // No se suma falta al jugador real porque puede tratarse de un tercero
-                std::cout << "[ANTI-CHEAT] paquete rechazado para jugador "
-                    << in.playerID << " desde origen no registrado" << std::endl;
-                return;
-            }
-
-            // Un paquete recibido del jugador indica actividad, pero el timeout real de conexion se valida con PING/PONG.
-            match.inactivityClock[idx].restart();
-
-            // FLAGS:
-            // NORMAL_PACKET = 0, CRITICAL_PACKET = 1, URGENT_PACKET = 2.
-           
-            const uint8_t allowedFlagMask = CRITICAL_PACKET | URGENT_PACKET;
-            if ((flags & ~allowedFlagMask) != 0) {
-                RegisterIrregularity(match, idx, "flags de paquete no validos");
-                return;
-            }
-
-            bool isCriticalPacket = (flags & CRITICAL_PACKET) != 0;
-            bool isUrgentPacket = (flags & URGENT_PACKET) != 0;
-
-            // En esta practica no tenemos acciones urgentes que no sean criticas.
-            // Por tanto, URGENT solo es valido combinado con CRITICAL.
-            if (isUrgentPacket && !isCriticalPacket) {
-                RegisterIrregularity(match, idx, "paquete urgente sin ser critico");
-                return;
-            }
-
-            // Los paquetes importantes se confirman con ACK para no repetirlos.
-            // El disparo es critico porque necesita ACK y urgente porque se procesa con prioridad.
-            if (isCriticalPacket) {
-                // Los paquetes criticos/urgentes de este juego solo pueden representar un disparo
-                if (in.packetID == 0 || in.inputMask != INPUT_SHOOT || in.movementID != 0) {
-                    RegisterIrregularity(match, idx, "paquete critico/urgente no valido");
-                    return;
-                }
-
-                // Si alguien manda un disparo critico sin URGENT, lo rechazamos para que la implementacion
-                // quede coherente con la teoria de combinacion de flags.
-                if (!isUrgentPacket) {
-                    RegisterIrregularity(match, idx, "disparo critico sin flag urgente");
-                    return;
-                }
-
-                S2C_AckPacket ack;
-                ack.ackedPacketID = in.packetID;
-                udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
-
-                bool alreadyProcessed =
-                    std::find(
-                        match.processedCriticalPackets[idx].begin(),
-                        match.processedCriticalPackets[idx].end(),
-                        in.packetID
-                    ) != match.processedCriticalPackets[idx].end();
-
-                if (!alreadyProcessed) {
-                    match.processedCriticalPackets[idx].push_back(in.packetID);
-
-                    if (in.inputMask & INPUT_SHOOT) {
-                        // Se busca un hueco libre para crear la bala
-                        for (short i = 0; i < MAX_BULLETS; i++) {
-                            if (!match.worldState.bullets[i].active) {
-                                match.worldState.bullets[i].active = true;
-                                match.worldState.bullets[i].ownerID = in.playerID;
-                                match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
-
-                                if (match.worldState.players[idx].facingRight) {
-                                    match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
-                                    match.worldState.bullets[i].velX = 15;
-                                }
-                                else {
-                                    match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
-                                    match.worldState.bullets[i].velX = -15;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                return;
-            }
-
-            // El movimiento normal puede moverse saltar o hacer burla pero no disparar
-            short allowedMovementMask = INPUT_LEFT | INPUT_RIGHT | INPUT_JUMP | INPUT_TAUNT;
-            if ((in.inputMask & ~allowedMovementMask) != 0) {
-                RegisterIrregularity(match, idx, "input de movimiento no permitido");
-                return;
-            }
-
-            // El movimiento normal necesita ID para que luego el cliente pueda reconciliar
-            if (in.movementID == 0) {
-                RegisterIrregularity(match, idx, "movementID no valido");
-                return;
-            }
-
-            if (in.timestamp >= match.lastTimestamps[idx]) {
-                match.lastTimestamps[idx] = in.timestamp;
-                match.playerInputs[idx] = in.inputMask;
-
-                if (in.hasPredictedPosition) {
-                    ClientMovementSnapshot movement;
-                    movement.movementID = in.movementID;
-                    movement.timestamp = in.timestamp;
-                    movement.inputMask = in.inputMask;
-                    movement.posX = in.predictedPosX;
-                    movement.posY = in.predictedPosY;
-
-                    // Guardamos la posicion predicha, pero no se confirma hasta que ValidateMovements la revise.
-                    InsertMovementSnapshot(match, idx, movement);
-                }
-            }
+        // El datagrama ya se ha convertido con memcpy a C2S_InputPacket.
+        // La logica queda en ProcessInputPacket para evitar una lambda gigante con auto.
+        std::function<void()> processInputPacket = [this, in, flags, sender, senderPort]() {
+            ProcessInputPacket(in, flags, sender, senderPort);
             };
 
         if ((flags & URGENT_PACKET) != 0) {
@@ -532,6 +310,247 @@ void Server::ProcessPackets() {
         else {
             // El paquete pasa a un hilo para no frenar la recepcion UDP.
             EnqueueTask(processInputPacket);
+        }
+    }
+}
+
+void Server::ProcessPongPacket(
+    const C2S_PongPacket& pong,
+    const std::optional<sf::IpAddress>& sender,
+    unsigned short senderPort
+) {
+    std::unique_lock<std::mutex> lock(dataMutex);
+
+    if (matches.find(pong.matchID) == matches.end()) {
+        return;
+    }
+
+    MatchData& match = matches[pong.matchID];
+
+    short idx = pong.playerID - 1;
+    if (idx < 0 || idx >= 2) return;
+
+    // Solo aceptamos el PONG si viene del mismo origen UDP que ya estaba registrado para ese jugador.
+    if (!match.clientConnected[idx] ||
+        !match.clientIPs[idx].has_value() ||
+        match.clientIPs[idx].value() != sender.value() ||
+        match.clientPorts[idx] != senderPort) {
+        std::cout << "[PING/PONG] PONG rechazado por origen no registrado" << std::endl;
+        return;
+    }
+
+    RegisterPong(match, idx, pong.pingID, pong.timestamp);
+}
+
+void Server::ProcessInputPacket(
+    const C2S_InputPacket& in,
+    uint8_t flags,
+    const std::optional<sf::IpAddress>& sender,
+    unsigned short senderPort
+) {
+    std::unique_lock<std::mutex> lock(dataMutex);
+
+    if (matches.find(in.matchID) == matches.end()) {
+        InitMatch(matches[in.matchID], in.matchID);
+        std::cout << "[UDP SERVER] sala creada match " << in.matchID << std::endl;
+    }
+
+    MatchData& match = matches[in.matchID];
+
+    if (in.type == (short)PacketType::MatchCreatedNotification) {
+        for (short i = 0; i < 2; i++) {
+            match.clientConnected[i] = false;
+            match.worldState.players[i].posX = 100 + (i * 400);
+            match.worldState.players[i].posY = 300;
+
+            // Al reiniciar la sala, la ultima posicion valida vuelve al spawn
+            match.lastValidPosX[i] = match.worldState.players[i].posX;
+            match.lastValidPosY[i] = match.worldState.players[i].posY;
+            match.pendingMovements[i].clear();
+            match.lastProcessedMovementID[i] = 0;
+            match.movementCorrectionPending[i] = false;
+
+            // Al reiniciar partida, tambien se reinicia la referencia temporal de validacion.
+            match.lastValidMovementTimestamp[i] = 0;
+            match.correctionBackMovementID[i] = 0;
+
+            // Tambien se reinicia el estado de PING/PONG y RTT.
+            match.pongClock[i].restart();
+            match.waitingPong[i] = false;
+            match.nextPingID[i] = 1;
+            match.lastPongID[i] = 0;
+            match.lastPingTimestamp[i] = 0;
+            match.lastRTT[i] = 0.0f;
+            match.averageRTT[i] = 0.0f;
+            match.hasRTT[i] = false;
+            match.timeoutWarningShown[i] = false;
+        }
+
+        match.pingClock.restart();
+        return;
+    }
+
+    if (in.type != (short)PacketType::GameMove) return;
+
+    // Se busca si el origen del paquete ya pertenece a uno de los jugadores conectados
+    short senderPlayerIndex = -1;
+    for (short i = 0; i < 2; i++) {
+        if (match.clientConnected[i] &&
+            match.clientIPs[i].has_value() &&
+            match.clientIPs[i].value() == sender.value() &&
+            match.clientPorts[i] == senderPort) {
+            senderPlayerIndex = i;
+        }
+    }
+
+    short idx = in.playerID - 1;
+
+    // Un jugador ya conocido no puede enviar un identificador que no exista
+    if (idx < 0 || idx >= 2) {
+        if (senderPlayerIndex != -1) {
+            RegisterIrregularity(match, senderPlayerIndex, "playerID no valido");
+        }
+        return;
+    }
+
+    // Un jugador no puede enviar acciones utilizando el playerID de su rival
+    if (senderPlayerIndex != -1 && senderPlayerIndex != idx) {
+        RegisterIrregularity(match, senderPlayerIndex, "intento de controlar al rival");
+        return;
+    }
+
+    if (!match.clientConnected[idx]) {
+        match.clientIPs[idx] = sender;
+        match.clientPorts[idx] = senderPort;
+        match.clientConnected[idx] = true;
+
+        // Al enganchar el jugador empieza el control Ping/Pong para ese cliente.
+        match.pongClock[idx].restart();
+        match.waitingPong[idx] = false;
+        match.nextPingID[idx] = 1;
+        match.lastPongID[idx] = 0;
+        match.lastPingTimestamp[idx] = 0;
+        match.lastRTT[idx] = 0.0f;
+        match.averageRTT[idx] = 0.0f;
+        match.hasRTT[idx] = false;
+        match.timeoutWarningShown[idx] = false;
+
+        std::cout << "[UDP] jugador " << in.playerID << " enganchado" << std::endl;
+    }
+    else if (!match.clientIPs[idx].has_value() ||
+        match.clientIPs[idx].value() != sender.value() ||
+        match.clientPorts[idx] != senderPort) {
+        // Si un origen desconocido intenta usar un slot ocupado el paquete se rechaza
+        // No se suma falta al jugador real porque puede tratarse de un tercero
+        std::cout << "[ANTI-CHEAT] paquete rechazado para jugador "
+            << in.playerID << " desde origen no registrado" << std::endl;
+        return;
+    }
+
+    // Un paquete recibido del jugador indica actividad, pero el timeout real de conexion se valida con PING/PONG.
+    match.inactivityClock[idx].restart();
+
+    // FLAGS:
+    // NORMAL_PACKET = 0, CRITICAL_PACKET = 1, URGENT_PACKET = 2.
+
+    const uint8_t allowedFlagMask = CRITICAL_PACKET | URGENT_PACKET;
+    if ((flags & ~allowedFlagMask) != 0) {
+        RegisterIrregularity(match, idx, "flags de paquete no validos");
+        return;
+    }
+
+    bool isCriticalPacket = (flags & CRITICAL_PACKET) != 0;
+    bool isUrgentPacket = (flags & URGENT_PACKET) != 0;
+
+    // En esta practica no tenemos acciones urgentes que no sean criticas.
+    // Por tanto, URGENT solo es valido combinado con CRITICAL.
+    if (isUrgentPacket && !isCriticalPacket) {
+        RegisterIrregularity(match, idx, "paquete urgente sin ser critico");
+        return;
+    }
+
+    // Los paquetes importantes se confirman con ACK para no repetirlos.
+    // El disparo es critico porque necesita ACK y urgente porque se procesa con prioridad.
+    if (isCriticalPacket) {
+        // Los paquetes criticos/urgentes de este juego solo pueden representar un disparo
+        if (in.packetID == 0 || in.inputMask != INPUT_SHOOT || in.movementID != 0) {
+            RegisterIrregularity(match, idx, "paquete critico/urgente no valido");
+            return;
+        }
+
+        // Si alguien manda un disparo critico sin URGENT, lo rechazamos para que la implementacion
+        // quede coherente con la teoria de combinacion de flags.
+        if (!isUrgentPacket) {
+            RegisterIrregularity(match, idx, "disparo critico sin flag urgente");
+            return;
+        }
+
+        S2C_AckPacket ack;
+        ack.ackedPacketID = in.packetID;
+        udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
+
+        bool alreadyProcessed =
+            std::find(
+                match.processedCriticalPackets[idx].begin(),
+                match.processedCriticalPackets[idx].end(),
+                in.packetID
+            ) != match.processedCriticalPackets[idx].end();
+
+        if (!alreadyProcessed) {
+            match.processedCriticalPackets[idx].push_back(in.packetID);
+
+            if (in.inputMask & INPUT_SHOOT) {
+                // Se busca un hueco libre para crear la bala
+                for (short i = 0; i < MAX_BULLETS; i++) {
+                    if (!match.worldState.bullets[i].active) {
+                        match.worldState.bullets[i].active = true;
+                        match.worldState.bullets[i].ownerID = in.playerID;
+                        match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
+
+                        if (match.worldState.players[idx].facingRight) {
+                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
+                            match.worldState.bullets[i].velX = 15;
+                        }
+                        else {
+                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
+                            match.worldState.bullets[i].velX = -15;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        return;
+    }
+
+    // El movimiento normal puede moverse saltar o hacer burla pero no disparar
+    short allowedMovementMask = INPUT_LEFT | INPUT_RIGHT | INPUT_JUMP | INPUT_TAUNT;
+    if ((in.inputMask & ~allowedMovementMask) != 0) {
+        RegisterIrregularity(match, idx, "input de movimiento no permitido");
+        return;
+    }
+
+    // El movimiento normal necesita ID para que luego el cliente pueda reconciliar
+    if (in.movementID == 0) {
+        RegisterIrregularity(match, idx, "movementID no valido");
+        return;
+    }
+
+    if (in.timestamp >= match.lastTimestamps[idx]) {
+        match.lastTimestamps[idx] = in.timestamp;
+        match.playerInputs[idx] = in.inputMask;
+
+        if (in.hasPredictedPosition) {
+            ClientMovementSnapshot movement;
+            movement.movementID = in.movementID;
+            movement.timestamp = in.timestamp;
+            movement.inputMask = in.inputMask;
+            movement.posX = in.predictedPosX;
+            movement.posY = in.predictedPosY;
+
+            // Guardamos la posicion predicha, pero no se confirma hasta que ValidateMovements la revise.
+            InsertMovementSnapshot(match, idx, movement);
         }
     }
 }
@@ -957,7 +976,7 @@ void Server::CheckTimeouts(MatchData& match) {
 
     for (short i = 0; i < 2; i++) {
         // PING/PONG:
-       
+
         //jugado conectado si responde con PONG a los PING del servidor.
         float secondsWithoutPong = match.pongClock[i].getElapsedTime().asSeconds();
 

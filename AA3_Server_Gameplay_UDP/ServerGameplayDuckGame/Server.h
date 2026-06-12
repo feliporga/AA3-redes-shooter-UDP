@@ -114,6 +114,24 @@ private:
 
     // Estas son las funciones principales del servidor UDP
     void ProcessPackets();
+
+    // Procesa un PONG despues de haber hecho memcpy en ProcessPackets.
+    // Asi se separa la recepcion/deserializacion de la logica del paquete.
+    void ProcessPongPacket(
+        const C2S_PongPacket& pong,
+        const std::optional<sf::IpAddress>& sender,
+        unsigned short senderPort
+    );
+
+    // Procesa un paquete de input despues de haber hecho memcpy en ProcessPackets.
+    // Asi evitamos tener una lambda gigante con auto dentro de ProcessPackets.
+    void ProcessInputPacket(
+        const C2S_InputPacket& in,
+        uint8_t flags,
+        const std::optional<sf::IpAddress>& sender,
+        unsigned short senderPort
+    );
+
     void UpdatePhysics(MatchData& match);
     void BroadcastState(MatchData& match);
     void InitMatch(MatchData& match, unsigned int matchID);
