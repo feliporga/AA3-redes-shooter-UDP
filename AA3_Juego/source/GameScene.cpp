@@ -7,6 +7,8 @@
 #include <fstream>
 // El resultado se queda unos segundos en pantalla antes de volver al menu
 #define RETURN_TO_MENU_DELAY_SECONDS 3
+
+#define CELL_SIZE 32
 // Estos valores controlan la prediccion local y el movimiento suave del rival
 const float LOCAL_PREDICTION_SPEED = 5.0f;
 const unsigned short INTERPOLATION_DELAY = 100;
@@ -17,8 +19,8 @@ class TileObject : public Object {
 public:
     TileObject(float x, float y) : Object() {
         transform->position = Vector2(x, y);
-        transform->size = Vector2(32, 32);
-        renderer = new ImageRenderer(transform, "resources/tile.png", Vector2(0, 0), Vector2(32, 32));
+        transform->size = Vector2(CELL_SIZE, CELL_SIZE);
+        renderer = new ImageRenderer(transform, "resources/tile.png", Vector2(0, 0), Vector2(CELL_SIZE, CELL_SIZE));
     }
 };
 
@@ -78,7 +80,7 @@ void GameScene::LoadMap() {
                 collisionRow.push_back(tileType);
 
                 if (tileType == 1) {
-                    TileObject* tile = new TileObject(col * 32.0f, row * 32.0f);
+                    TileObject* tile = new TileObject(col * CELL_SIZE, row * CELL_SIZE);
                     SPAWN.SpawnObject(tile);
                 }
 
@@ -454,7 +456,7 @@ void GameScene::Update() {
 
         NM.SendUDPInput(mask, currentTime, movementID, hasPredictedPosition, predictedPosX, predictedPosY);
 
-        // SHOUT (F)
+        // SHOOT (F)
         static bool prevShoot = false;
         bool currentShoot = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::F);
         if (currentShoot && !prevShoot) {

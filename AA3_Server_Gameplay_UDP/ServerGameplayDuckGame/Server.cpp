@@ -679,7 +679,7 @@ void Server::ValidateMovements(MatchData& match) {
 
             // Distancia maxima aceptada segun velocidad horizontal, movimiento vertical y tolerancia por red.
             int maxHorizontalDistance = (int)(5.0f * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
-            int maxVerticalDistance = (int)(16.0f * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
+            int maxVerticalDistance = (int)(MINIMUM_VALIDATION_TIME_TOLERANCE * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
 
             bool distanceOk = std::abs(diffX) <= maxHorizontalDistance && std::abs(diffY) <= maxVerticalDistance;
 
@@ -687,6 +687,7 @@ void Server::ValidateMovements(MatchData& match) {
 
             if (!distanceOk || !mapOk) {
                 SetBackCorrection(match, i, "movimiento BAD, vuelve al ultimo ID valido", true);
+                std::cout << "DistanceOK:" << distanceOk << "-------- " << "MapOk: " << mapOk << std::endl;
                 break;
             }
 
