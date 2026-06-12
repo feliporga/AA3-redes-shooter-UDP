@@ -508,12 +508,12 @@ void Server::ProcessInputPacket(
                         match.worldState.bullets[i].posY = match.worldState.players[idx].posY;
 
                         if (match.worldState.players[idx].facingRight) {
-                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX + 20;
-                            match.worldState.bullets[i].velX = 15;
+                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX + BULLET_SPAWN_OFFSET;
+                            match.worldState.bullets[i].velX = BULLET_SPEED;
                         }
                         else {
-                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX - 20;
-                            match.worldState.bullets[i].velX = -15;
+                            match.worldState.bullets[i].posX = match.worldState.players[idx].posX - BULLET_SPAWN_OFFSET;
+                            match.worldState.bullets[i].velX = -BULLET_SPEED;
                         }
                         break;
                     }
@@ -708,7 +708,7 @@ void Server::ValidateMovements(MatchData& match) {
             match.lastProcessedMovementID[i] = movement.movementID;
             match.worldState.players[i].lastProcessedMovementID = movement.movementID;
 
-            if (p.posY > 1000) {
+            if (p.posY > DEATH_Y_LIMIT) {
                 short rivalID = (i == 0) ? match.worldState.players[1].id : match.worldState.players[0].id;
                 HandlePlayerDeath(match, i, rivalID);
                 break;

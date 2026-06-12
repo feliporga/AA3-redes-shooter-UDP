@@ -23,6 +23,10 @@ const short PLAYER_HITBOX_W = 32;
 const short PLAYER_HITBOX_H = 32;
 const short BULLET_HITBOX_W = 10;
 const short BULLET_HITBOX_H = 10;
+const short PLAYER_JUMP_SPEED = -15;
+const short BULLET_SPEED = 15;
+const short BULLET_SPAWN_OFFSET = 20;
+const short DEATH_Y_LIMIT = 1000;
 
 // Tipo de paquete optimizado a short
 enum class PacketType : short {

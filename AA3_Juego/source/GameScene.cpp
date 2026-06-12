@@ -176,7 +176,7 @@ void GameScene::SimulateLocalMovement(short inputMask, Transform& transform, sho
 
     // El salto solo se acepta localmente si la ultima simulacion cree que estamos en el suelo.
     if ((inputMask & INPUT_JUMP) && onGround) {
-        velY = -15;
+        velY = PLAYER_JUMP_SPEED;
         onGround = false;
     }
 
