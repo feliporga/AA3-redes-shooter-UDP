@@ -61,6 +61,10 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.waitingPong[i] = false;
         match.nextPingID[i] = 1;
         match.lastPongID[i] = 0;
+        match.lastPingTimestamp[i] = 0;
+        match.lastRTT[i] = 0.0f;
+        match.averageRTT[i] = 0.0f;
+        match.hasRTT[i] = false;
 
         match.timeoutWarningShown[i] = false;
         match.playerInputs[i] = INPUT_NONE;
@@ -265,7 +269,7 @@ void Server::ProcessPackets() {
 
         // PONG:
         // El cliente responde a los Ping del servidor. Este paquete no mueve al jugador,
-        // solo demuestra que sigue vivo.
+        // solo demuestra que sigue vivo y permite calcular el RTT.
         if (packetType == (short)PacketType::Pong) {
             if (received < sizeof(C2S_PongPacket)) continue;
 
@@ -297,7 +301,7 @@ void Server::ProcessPackets() {
                     return;
                 }
 
-                RegisterPong(match, idx, pong.pingID);
+                RegisterPong(match, idx, pong.pingID, pong.timestamp);
                 });
 
             continue;
@@ -339,11 +343,15 @@ void Server::ProcessPackets() {
                     match.lastValidMovementTimestamp[i] = 0;
                     match.correctionBackMovementID[i] = 0;
 
-                    // Tambien se reinicia el estado de PING/PONG.
+                    // Tambien se reinicia el estado de PING/PONG y RTT.
                     match.pongClock[i].restart();
                     match.waitingPong[i] = false;
                     match.nextPingID[i] = 1;
                     match.lastPongID[i] = 0;
+                    match.lastPingTimestamp[i] = 0;
+                    match.lastRTT[i] = 0.0f;
+                    match.averageRTT[i] = 0.0f;
+                    match.hasRTT[i] = false;
                     match.timeoutWarningShown[i] = false;
                 }
 
@@ -390,6 +398,10 @@ void Server::ProcessPackets() {
                 match.waitingPong[idx] = false;
                 match.nextPingID[idx] = 1;
                 match.lastPongID[idx] = 0;
+                match.lastPingTimestamp[idx] = 0;
+                match.lastRTT[idx] = 0.0f;
+                match.averageRTT[idx] = 0.0f;
+                match.hasRTT[idx] = false;
                 match.timeoutWarningShown[idx] = false;
 
                 std::cout << "[UDP] jugador " << in.playerID << " enganchado" << std::endl;
@@ -846,23 +858,51 @@ void Server::SendPingPackets(MatchData& match) {
         ping.pingID = match.nextPingID[i]++;
         ping.timestamp = match.serverClock.getElapsedTime().asMilliseconds();
 
+        // Guardamos el timestamp del ultimo Ping enviado.
+        // Cuando llegue el Pong, se calcula RTT con este tiempo.
+        match.lastPingTimestamp[i] = ping.timestamp;
+
         udpSocket.send(&ping, sizeof(S2C_PingPacket), match.clientIPs[i].value(), match.clientPorts[i]);
 
         match.waitingPong[i] = true;
 
         std::cout << "[PING/PONG] PING enviado a jugador "
             << match.worldState.players[i].id
-            << " pingID " << ping.pingID << std::endl;
+            << " pingID " << ping.pingID
+            << " timestamp " << ping.timestamp << std::endl;
     }
 }
 
-void Server::RegisterPong(MatchData& match, short playerIndex, unsigned short pingID) {
+void Server::RegisterPong(MatchData& match, short playerIndex, unsigned short pingID, unsigned int pingTimestamp) {
     if (playerIndex < 0 || playerIndex >= 2) return;
     if (match.worldState.isGameOver) return;
 
     // Si llega un Pong repetido o antiguo, se ignora.
     if (pingID <= match.lastPongID[playerIndex]) {
         return;
+    }
+
+    unsigned int currentServerTime = match.serverClock.getElapsedTime().asMilliseconds();
+
+    // RTT:
+    // El cliente devuelve el timestamp original del Ping.
+    // Por tanto, el servidor calcula la latencia ida/vuelta como:
+    // RTT = tiempoActualServidor - timestampPingOriginal
+    float rtt = 0.0f;
+    if (currentServerTime >= pingTimestamp) {
+        rtt = (float)(currentServerTime - pingTimestamp);
+    }
+
+    match.lastRTT[playerIndex] = rtt;
+
+    // Media suavizada para que no salte demasiado de un Ping a otro.
+    if (!match.hasRTT[playerIndex]) {
+        match.averageRTT[playerIndex] = rtt;
+        match.hasRTT[playerIndex] = true;
+    }
+    else {
+        match.averageRTT[playerIndex] =
+            (match.averageRTT[playerIndex] * 0.8f) + (rtt * 0.2f);
     }
 
     match.lastPongID[playerIndex] = pingID;
@@ -872,7 +912,9 @@ void Server::RegisterPong(MatchData& match, short playerIndex, unsigned short pi
 
     std::cout << "[PING/PONG] PONG recibido de jugador "
         << match.worldState.players[playerIndex].id
-        << " pingID " << pingID << std::endl;
+        << " pingID " << pingID
+        << " RTT " << match.lastRTT[playerIndex] << " ms"
+        << " | RTT medio " << match.averageRTT[playerIndex] << " ms" << std::endl;
 }
 
 void Server::CheckTimeouts(MatchData& match) {

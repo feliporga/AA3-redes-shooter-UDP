@@ -256,7 +256,7 @@ public:
         unackedPackets.push_back({ packet, time });
     }
 
-    void SendUDPPong(unsigned short pingID, unsigned int time) {
+    void SendUDPPong(unsigned short pingID, unsigned int pingTimestamp) {
         if (!serverUdpIp.has_value()) return;
         if (myPlayerID == 0 || currentMatchID == 0) return;
 
@@ -265,7 +265,10 @@ public:
         pong.matchID = currentMatchID;
         pong.playerID = myPlayerID;
         pong.pingID = pingID;
-        pong.timestamp = time;
+
+        // Se devuelve exactamente el timestamp del Ping.
+        // El servidor usara este dato para calcular RTT.
+        pong.timestamp = pingTimestamp;
 
         udpSocket.send(&pong, sizeof(C2S_PongPacket), serverUdpIp.value(), dynamicUdpPort);
         std::cout << "[CLIENTE] PONG enviado al servidor UDP. PingID: " << pingID << std::endl;
@@ -294,6 +297,7 @@ public:
 
                 // PING/PONG:
                 // El servidor pregunta si seguimos vivos y el cliente responde inmediatamente con PONG.
+                // El PONG conserva el timestamp original para que el servidor calcule RTT.
                 SendUDPPong(ping.pingID, ping.timestamp);
             }
             else if (type == (short)PacketType::UpdateBoard) {

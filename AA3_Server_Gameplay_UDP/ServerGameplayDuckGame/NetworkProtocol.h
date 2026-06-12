@@ -92,6 +92,7 @@ struct S2C_AckPacket {
 
 // Paquete Ping (Servidor UDP -> Cliente)
 // El servidor lo envia de forma periodica para comprobar que el cliente sigue vivo.
+// timestamp guarda el tiempo de envio del servidor y luego sirve para calcular el RTT.
 struct S2C_PingPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Ping;
@@ -102,7 +103,8 @@ struct S2C_PingPacket {
 };
 
 // Paquete Pong (Cliente -> Servidor UDP)
-// El cliente responde al Ping manteniendo el mismo pingID.
+// El cliente responde al Ping manteniendo el mismo pingID y el mismo timestamp del Ping.
+// Asi el servidor puede calcular RTT = tiempoActualServidor - timestampPing.
 struct C2S_PongPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Pong;

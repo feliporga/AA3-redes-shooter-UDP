@@ -76,11 +76,16 @@ private:
         // Sistema PING/PONG:
         // pingClock controla cada cuanto el servidor envia Ping.
         // pongClock mide cuanto tiempo hace que no recibimos Pong de cada jugador.
+        // lastRTT guarda el ultimo RTT calculado y averageRTT guarda una media suavizada.
         sf::Clock pingClock;
         sf::Clock pongClock[2];
         bool waitingPong[2];
         unsigned short nextPingID[2];
         unsigned short lastPongID[2];
+        unsigned int lastPingTimestamp[2];
+        float lastRTT[2];
+        float averageRTT[2];
+        bool hasRTT[2];
 
         // Este reloj mide cuanto lleva cada jugador sin mandar nada.
         // Se mantiene por compatibilidad, pero el timeout real ahora lo controla el PONG.
@@ -115,7 +120,7 @@ private:
     void CleanupMatches();
     void CheckTimeouts(MatchData& match);
     void SendPingPackets(MatchData& match);
-    void RegisterPong(MatchData& match, short playerIndex, unsigned short pingID);
+    void RegisterPong(MatchData& match, short playerIndex, unsigned short pingID, unsigned int pingTimestamp);
 
     std::vector<std::vector<short>> levelMap;
     short mapRows = 0;
