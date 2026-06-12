@@ -237,7 +237,11 @@ public:
         if (!serverUdpIp.has_value()) return;
 
         C2S_InputPacket packet;
-        packet.flags = CRITICAL_PACKET;
+
+        // El disparo es a la vez CRITICO y URGENTE:
+        // CRITICAL_PACKET: requiere ACK y reenvio si se pierde.
+        // URGENT_PACKET: el servidor lo procesa con prioridad sobre los movimientos normales.
+        packet.flags = CRITICAL_PACKET | URGENT_PACKET;
         packet.packetID = nextPacketID++;
         packet.playerID = myPlayerID;
         packet.timestamp = time;
@@ -341,7 +345,7 @@ public:
             if (currentTime - unackedPackets[i].lastSendTime > 100) {
                 udpSocket.send(&unackedPackets[i].packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
                 unackedPackets[i].lastSendTime = currentTime;
-                std::cout << "[CLIENTE] Reenviando paquete critico perdido (ID: " << unackedPackets[i].packet.packetID << ")" << std::endl;
+                std::cout << "[CLIENTE] Reenviando paquete critico/urgente perdido (ID: " << unackedPackets[i].packet.packetID << ")" << std::endl;
             }
         }
     }

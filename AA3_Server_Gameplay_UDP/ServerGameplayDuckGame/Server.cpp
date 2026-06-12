@@ -270,9 +270,7 @@ void Server::ProcessPackets() {
         // PONG:
         // El cliente responde a los Ping del servidor. Este paquete no mueve al jugador,
         // solo demuestra que sigue vivo y permite calcular el RTT.
-        if (packetType == (short)PacketType::Pong) {
-            if (received < sizeof(C2S_PongPacket)) continue;
-
+        if (received == sizeof(C2S_PongPacket) && packetType == (short)PacketType::Pong) {
             C2S_PongPacket pong;
             std::memcpy(&pong, buffer, sizeof(C2S_PongPacket));
 
@@ -314,8 +312,10 @@ void Server::ProcessPackets() {
 
         if (in.matchID == 0) continue;
 
-        // El paquete pasa a un hilo para no frenar la recepcion UDP
-        EnqueueTask([this, in, flags, sender, senderPort]() {
+        // Se prepara el procesamiento del paquete de input.
+        // Los paquetes normales se encolan en la ThreadPool.
+        // Los paquetes URGENT se procesan directamente para no esperar detras de movimientos normales.
+        auto processInputPacket = [this, in, flags, sender, senderPort]() {
 
             std::unique_lock<std::mutex> lock(dataMutex);
 
@@ -419,17 +419,38 @@ void Server::ProcessPackets() {
             // Un paquete recibido del jugador indica actividad, pero el timeout real de conexion se valida con PING/PONG.
             match.inactivityClock[idx].restart();
 
-            // Solo se aceptan paquetes normales o paquetes criticos definidos por el juego
-            if (flags != NORMAL_PACKET && flags != CRITICAL_PACKET) {
+            // FLAGS:
+            // NORMAL_PACKET = 0, CRITICAL_PACKET = 1, URGENT_PACKET = 2.
+           
+            const uint8_t allowedFlagMask = CRITICAL_PACKET | URGENT_PACKET;
+            if ((flags & ~allowedFlagMask) != 0) {
                 RegisterIrregularity(match, idx, "flags de paquete no validos");
                 return;
             }
 
-            // Los paquetes importantes se confirman con ACK para no repetirlos
-            if (flags & CRITICAL_PACKET) {
-                // Los paquetes criticos de este juego solo pueden representar un disparo
+            bool isCriticalPacket = (flags & CRITICAL_PACKET) != 0;
+            bool isUrgentPacket = (flags & URGENT_PACKET) != 0;
+
+            // En esta practica no tenemos acciones urgentes que no sean criticas.
+            // Por tanto, URGENT solo es valido combinado con CRITICAL.
+            if (isUrgentPacket && !isCriticalPacket) {
+                RegisterIrregularity(match, idx, "paquete urgente sin ser critico");
+                return;
+            }
+
+            // Los paquetes importantes se confirman con ACK para no repetirlos.
+            // El disparo es critico porque necesita ACK y urgente porque se procesa con prioridad.
+            if (isCriticalPacket) {
+                // Los paquetes criticos/urgentes de este juego solo pueden representar un disparo
                 if (in.packetID == 0 || in.inputMask != INPUT_SHOOT || in.movementID != 0) {
-                    RegisterIrregularity(match, idx, "paquete critico no valido");
+                    RegisterIrregularity(match, idx, "paquete critico/urgente no valido");
+                    return;
+                }
+
+                // Si alguien manda un disparo critico sin URGENT, lo rechazamos para que la implementacion
+                // quede coherente con la teoria de combinacion de flags.
+                if (!isUrgentPacket) {
+                    RegisterIrregularity(match, idx, "disparo critico sin flag urgente");
                     return;
                 }
 
@@ -501,7 +522,17 @@ void Server::ProcessPackets() {
                     InsertMovementSnapshot(match, idx, movement);
                 }
             }
-            });
+            };
+
+        if ((flags & URGENT_PACKET) != 0) {
+            // Los paquetes urgentes no esperan en la cola de tareas.
+            // Se procesan inmediatamente para que acciones como el disparo no se retrasen detras del movimiento normal.
+            processInputPacket();
+        }
+        else {
+            // El paquete pasa a un hilo para no frenar la recepcion UDP.
+            EnqueueTask(processInputPacket);
+        }
     }
 }
 
@@ -926,8 +957,8 @@ void Server::CheckTimeouts(MatchData& match) {
 
     for (short i = 0; i < 2; i++) {
         // PING/PONG:
-        // Ya no usamos el movimiento como prueba principal de vida.
-        // Ahora el jugador solo se considera conectado si responde con PONG a los PING del servidor.
+       
+        //jugado conectado si responde con PONG a los PING del servidor.
         float secondsWithoutPong = match.pongClock[i].getElapsedTime().asSeconds();
 
         // Sale un aviso por consola antes de echar al jugador
