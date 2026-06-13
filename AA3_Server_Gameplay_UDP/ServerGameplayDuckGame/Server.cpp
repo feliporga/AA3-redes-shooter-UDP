@@ -678,16 +678,17 @@ void Server::ValidateMovements(MatchData& match) {
             int diffY = movement.posY - match.lastValidPosY[i];
 
             // Distancia maxima aceptada segun velocidad horizontal, movimiento vertical y tolerancia por red.
-            int maxHorizontalDistance = (int)(5.0f * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
-            int maxVerticalDistance = (int)(MINIMUM_VALIDATION_TIME_TOLERANCE * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
+            int maxHorizontalDistance = (int)(HORIZONTAL_VALIDATION_TIME_TOLERANCE * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
+            int maxVerticalDistance = (int)(VERTICAL_VALIDATION_TIME_TOLERANCE * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
 
             bool distanceOk = std::abs(diffX) <= maxHorizontalDistance && std::abs(diffY) <= maxVerticalDistance;
 
             bool mapOk = !CheckTileCollision(movement.posX, movement.posY, PLAYER_HITBOX_W, PLAYER_HITBOX_H);
 
             if (!distanceOk || !mapOk) {
+                std::cout << "DiffX :" << diffX << "-------- " << "MaxHorizontalDistance: " << maxHorizontalDistance << std::endl
+                    << "DiffY: " << diffY << "-------- " << "MaxVerticalDistance: " << maxVerticalDistance << "-------- " << std::endl;
                 SetBackCorrection(match, i, "movimiento BAD, vuelve al ultimo ID valido", true);
-                std::cout << "DistanceOK:" << distanceOk << "-------- " << "MapOk: " << mapOk << std::endl;
                 break;
             }
 

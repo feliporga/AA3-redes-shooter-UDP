@@ -250,9 +250,22 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         return;
     }
 
-    // Reconciliacion normal:
-    // volvemos al estado autoritativo del servidor, eliminamos los inputs ya confirmados
-    // y re-simulamos los inputs que todavia estan pendientes.
+    // Reconciliacion normal: volvemos al estado autoritativo del servidor, eliminamos los inputs ya confirmados y re-simulamos los inputs que todavia estan pendientes.
+    short baseVelX = serverPlayer.velX;
+    short baseVelY = serverPlayer.velY;
+    bool baseOnGround = serverPlayer.onGround;
+
+    // Buscamos el movimiento que acaba de confirmar el servidor.
+    // Si lo tenemos guardado, usamos su velocidad local para no cortar el salto.
+    for (std::size_t i = 0; i < pendingMovements.size(); i++) {
+        if (pendingMovements[i].movementID == serverPlayer.lastProcessedMovementID) {
+            baseVelX = pendingMovements[i].velX;
+            baseVelY = pendingMovements[i].velY;
+            baseOnGround = pendingMovements[i].onGround;
+            break;
+        }
+    }
+    
     for (std::size_t i = 0; i < pendingMovements.size(); ) {
         if (pendingMovements[i].movementID <= serverPlayer.lastProcessedMovementID) {
             pendingMovements.erase(pendingMovements.begin() + i);
@@ -264,9 +277,9 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
 
     // Punto de partida autoritativo: el servidor manda la posicion/velocidad hasta el ultimo input validado.
     playerModels[localIndex].transform.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
-    localPredictedVelX = serverPlayer.velX;
-    localPredictedVelY = serverPlayer.velY;
-    localPredictedOnGround = serverPlayer.onGround;
+    localPredictedVelX = baseVelX;
+    localPredictedVelY = baseVelY;
+    localPredictedOnGround = baseOnGround;
 
     // Re-aplicamos los inputs que el cliente ya habia predicho pero el servidor aun no ha confirmado.
     for (std::size_t i = 0; i < pendingMovements.size(); i++) {
@@ -280,6 +293,9 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         // Actualizamos la posicion predicha asociada al input por si se vuelve a validar desde este estado corregido.
         pendingMovements[i].posX = (short)playerModels[localIndex].transform.position.x;
         pendingMovements[i].posY = (short)playerModels[localIndex].transform.position.y;
+        pendingMovements[i].velX = localPredictedVelX;
+        pendingMovements[i].velY = localPredictedVelY;
+        pendingMovements[i].onGround = localPredictedOnGround;
     }
 }
 
@@ -451,6 +467,9 @@ void GameScene::Update() {
             newMovement.inputMask = mask;
             newMovement.posX = predictedPosX;
             newMovement.posY = predictedPosY;
+            newMovement.velX = localPredictedVelX;
+            newMovement.velY = localPredictedVelY;
+            newMovement.onGround = localPredictedOnGround;
             pendingMovements.push_back(newMovement);
         }
 

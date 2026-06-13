@@ -28,8 +28,12 @@
 
 // Tolerancia de validacion de movimiento para permitir perdida de paquetes y pequeñas diferencias de simulacion
 #define MOVEMENT_VALIDATION_TOLERANCE 15
+
 #define MINIMUM_VALIDATION_TIME_TOLERANCE 16
 #define MAXIMUM_VALIDATION_TIME_TOLERANCE 250
+
+#define HORIZONTAL_VALIDATION_TIME_TOLERANCE 5
+#define VERTICAL_VALIDATION_TIME_TOLERANCE 16
 
 class Server {
 private:

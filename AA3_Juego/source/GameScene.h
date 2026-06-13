@@ -29,6 +29,10 @@ struct PendingMovement {
     // Posicion predicha que el cliente ha enviado al servidor para validacion
     short posX;
     short posY;
+
+    short velX;
+	short velY;
+    bool onGround;
 };
 
 // Estado recibido del rival para poder mostrarlo interpolado
