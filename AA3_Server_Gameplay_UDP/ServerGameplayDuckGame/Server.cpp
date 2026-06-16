@@ -610,7 +610,6 @@ void Server::ProcessInputPacket(
         if (in.hasPredictedPosition) {
             ClientMovementSnapshot movement;
             movement.movementID = in.movementID;
-            movement.timestamp = in.timestamp;
             movement.inputMask = in.inputMask;
             movement.posX = in.predictedPosX;
             movement.posY = in.predictedPosY;

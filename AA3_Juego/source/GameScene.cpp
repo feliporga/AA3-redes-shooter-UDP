@@ -265,7 +265,7 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
             break;
         }
     }
-    
+
     for (std::size_t i = 0; i < pendingMovements.size(); ) {
         if (pendingMovements[i].movementID <= serverPlayer.lastProcessedMovementID) {
             pendingMovements.erase(pendingMovements.begin() + i);
@@ -473,7 +473,7 @@ void GameScene::Update() {
             pendingMovements.push_back(newMovement);
         }
 
-        NM.SendUDPInput(mask, currentTime, movementID, hasPredictedPosition, predictedPosX, predictedPosY);
+        NM.SendUDPInput(mask, movementID, hasPredictedPosition, predictedPosX, predictedPosY);
 
         // SHOOT (F)
         static bool prevShoot = false;

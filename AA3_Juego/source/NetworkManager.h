@@ -212,14 +212,13 @@ public:
 
     // UDP
 
-    void SendUDPInput(short mask, unsigned int time, unsigned short movementID, bool hasPredictedPosition, short predictedPosX, short predictedPosY) {
+    void SendUDPInput(short mask, unsigned short movementID, bool hasPredictedPosition, short predictedPosX, short predictedPosY) {
         if (!serverUdpIp.has_value()) return;
 
         C2S_InputPacket packet;
         packet.flags = NORMAL_PACKET;
         packet.packetID = 0;
         packet.playerID = myPlayerID;
-        packet.timestamp = time;
         packet.inputMask = mask;
         packet.matchID = currentMatchID;
 
@@ -245,7 +244,6 @@ public:
         packet.flags = CRITICAL_PACKET | URGENT_PACKET;
         packet.packetID = nextPacketID++;
         packet.playerID = myPlayerID;
-        packet.timestamp = time;
         packet.inputMask = mask;
         packet.matchID = currentMatchID;
 

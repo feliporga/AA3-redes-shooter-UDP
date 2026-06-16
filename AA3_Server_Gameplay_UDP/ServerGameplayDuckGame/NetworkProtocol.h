@@ -74,11 +74,10 @@ struct C2S_InputPacket {
     unsigned short packetID = 0;
     short type = (short)PacketType::GameMove;
     short playerID;
-    unsigned int timestamp;
     short inputMask;
     unsigned short matchID = 0;
 
-    // Identifica cada input normal para poder hacer predicción y reconciliación
+    // Identifica cada input normal para poder hacer prediccion y reconciliacion.
     unsigned short movementID = 0;
 
     // Posicion predicha por el cliente para que el servidor pueda validarla como en el tema de movimiento
@@ -87,7 +86,7 @@ struct C2S_InputPacket {
     short predictedPosY = 0;
 };
 
-// Paquete de Confirmación (Servidor -> Cliente UDP)
+// Paquete de Confirmacion (Servidor -> Cliente UDP)
 struct S2C_AckPacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::Ack;
