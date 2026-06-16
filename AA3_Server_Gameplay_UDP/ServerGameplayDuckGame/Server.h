@@ -26,7 +26,7 @@
 #define PONG_TIMEOUT_SECONDS 5
 #define PONG_WARNING_SECONDS 2
 
-// Tolerancia de validacion de movimiento para permitir perdida de paquetes y pequeñas diferencias de simulacion
+// Tolerancia de validacion de movimiento para permitir perdida de paquetes y pequenas diferencias de simulacion
 #define MOVEMENT_VALIDATION_TOLERANCE 15
 
 // Validacion por ID:
@@ -50,7 +50,6 @@ private:
 
     struct ClientMovementSnapshot {
         unsigned short movementID;
-        unsigned int timestamp;
         short inputMask;
         short posX;
         short posY;
