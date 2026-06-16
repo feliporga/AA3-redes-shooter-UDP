@@ -29,12 +29,14 @@
 // Tolerancia de validacion de movimiento para permitir perdida de paquetes y pequeñas diferencias de simulacion
 #define MOVEMENT_VALIDATION_TOLERANCE 15
 
-#define MINIMUM_VALIDATION_TIME_TOLERANCE 16
-#define MAXIMUM_VALIDATION_TIME_TOLERANCE 250
+// Validacion por ID:
+// si el servidor tenia aceptado el ID 1 y llega el ID 3, se permite distancia de dos movimientos.
+#define HORIZONTAL_VALIDATION_DISTANCE_PER_MOVEMENT 5
+#define VERTICAL_VALIDATION_DISTANCE_PER_MOVEMENT 16
+#define MAX_MOVEMENT_ID_GAP 5
 
-#define HORIZONTAL_VALIDATION_TIME_TOLERANCE 5
-#define VERTICAL_VALIDATION_TIME_TOLERANCE 16
-
+// Limite de seguridad para que la cola interna de paquetes recibidos no crezca sin control.
+#define MAX_RECEIVED_QUEUE_SIZE 1024
 
 
 class Server {
@@ -59,10 +61,6 @@ private:
         unsigned short clientPorts[2];
         bool clientConnected[2];
 
-        unsigned int lastTimestamps[2];
-
-        // Timestamp del ultimo movimiento que el servidor acepto como valido.
-        unsigned int lastValidMovementTimestamp[2];
         short playerInputs[2];
 
         std::vector<unsigned int> processedCriticalPackets[2];

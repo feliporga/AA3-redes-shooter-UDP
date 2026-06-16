@@ -70,11 +70,6 @@ void Server::InitMatch(MatchData& match, unsigned int matchID) {
         match.clientIPs[i].reset();
         match.clientPorts[i] = 0;
         match.clientConnected[i] = false;
-        match.lastTimestamps[i] = 0;
-
-        // Todavia no hay ningun movimiento validado, asi que el primer paquete parte desde cero.
-        match.lastValidMovementTimestamp[i] = 0;
-
         // PING/PONG empieza limpio para cada jugador
         match.pongClock[i].restart();
         match.waitingPong[i] = false;
@@ -297,7 +292,12 @@ void Server::ProcessPackets() {
 
             {
                 std::unique_lock<std::mutex> lock(receivedQueueMutex);
-                           
+
+                // Si la recepcion supera al procesamiento, descartamos el paquete mas antiguo para no llenar memoria.
+                if (receivedPackets.size() >= MAX_RECEIVED_QUEUE_SIZE) {
+                    receivedPackets.pop();
+                }
+
                 receivedPackets.push(std::move(packet));
             }
             receivedCondition.notify_one();
@@ -365,7 +365,7 @@ void Server::DispatchReceivedPacket(const ReceivedPacket& packet) {
     // Los paquetes normales se encolan en la ThreadPool.
     // Los paquetes URGENT se encolan en urgentTasks para no esperar detras de movimientos normales.
     // El datagrama ya se ha convertido
-   
+
     std::function<void()> processInputPacket = [this, in, flags, sender = packet.sender, senderPort = packet.senderPort]() {
         ProcessInputPacket(in, flags, sender, senderPort);
         };
@@ -437,8 +437,6 @@ void Server::ProcessInputPacket(
             match.lastProcessedMovementID[i] = 0;
             match.movementCorrectionPending[i] = false;
 
-            // Al reiniciar partida, tambien se reinicia la referencia temporal de validacion.
-            match.lastValidMovementTimestamp[i] = 0;
             match.correctionBackMovementID[i] = 0;
 
             // Tambien se reinicia el estado de PING/PONG y RTT.
@@ -604,8 +602,9 @@ void Server::ProcessInputPacket(
         return;
     }
 
-    if (in.timestamp >= match.lastTimestamps[idx]) {
-        match.lastTimestamps[idx] = in.timestamp;
+    // La validacion normal ya no depende del timestamp del cliente.
+    // Si el ID ya esta confirmado o es antiguo, se ignora; si es nuevo, se guarda ordenado.
+    if (in.movementID > match.lastProcessedMovementID[idx]) {
         match.playerInputs[idx] = in.inputMask;
 
         if (in.hasPredictedPosition) {
@@ -727,26 +726,30 @@ void Server::ValidateMovements(MatchData& match) {
                 }
             }
 
-            // Calculamos cuanto tiempo ha pasado desde el ultimo movimiento valido.
-            int elapsedMs = MINIMUM_VALIDATION_TIME_TOLERANCE;
+            // Validacion por ID:
+            // si faltan movimientos intermedios, se aumenta la distancia permitida proporcionalmente.
+            // Ejemplo: ultimo ID bueno 1 y llega ID 3 -> movementGap = 2.
+            int movementGap = (int)movement.movementID - (int)match.lastProcessedMovementID[i];
 
-            if (match.lastValidMovementTimestamp[i] > 0 &&
-                movement.timestamp > match.lastValidMovementTimestamp[i]) {
-                elapsedMs = movement.timestamp - match.lastValidMovementTimestamp[i];
+            if (movementGap <= 0) {
+                continue;
             }
 
-            // Limitamos el rango para evitar validaciones raras por paquetes duplicados, perdidos o pausas grandes.
-            if (elapsedMs < MINIMUM_VALIDATION_TIME_TOLERANCE) elapsedMs = MINIMUM_VALIDATION_TIME_TOLERANCE;
-            if (elapsedMs > MAXIMUM_VALIDATION_TIME_TOLERANCE) elapsedMs = MAXIMUM_VALIDATION_TIME_TOLERANCE;
-
-            float elapsedTicks = elapsedMs / (float)MINIMUM_VALIDATION_TIME_TOLERANCE;
+            // Si el salto de ID es enorme, no damos una tolerancia infinita.
+            if (movementGap > MAX_MOVEMENT_ID_GAP) {
+                SetBackCorrection(match, i, "salto de movementID demasiado grande", true);
+                break;
+            }
 
             int diffX = movement.posX - match.lastValidPosX[i];
             int diffY = movement.posY - match.lastValidPosY[i];
 
-            // Distancia maxima aceptada segun velocidad horizontal, movimiento vertical y tolerancia por red.
-            int maxHorizontalDistance = (int)(HORIZONTAL_VALIDATION_TIME_TOLERANCE * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
-            int maxVerticalDistance = (int)(VERTICAL_VALIDATION_TIME_TOLERANCE * elapsedTicks) + MOVEMENT_VALIDATION_TOLERANCE;
+            // Distancia maxima aceptada segun cuantos movementID han avanzado desde el ultimo valido.
+            int maxHorizontalDistance =
+                (HORIZONTAL_VALIDATION_DISTANCE_PER_MOVEMENT * movementGap) + MOVEMENT_VALIDATION_TOLERANCE;
+
+            int maxVerticalDistance =
+                (VERTICAL_VALIDATION_DISTANCE_PER_MOVEMENT * movementGap) + MOVEMENT_VALIDATION_TOLERANCE;
 
             bool distanceOk = std::abs(diffX) <= maxHorizontalDistance && std::abs(diffY) <= maxVerticalDistance;
 
@@ -772,8 +775,8 @@ void Server::ValidateMovements(MatchData& match) {
             match.lastValidPosX[i] = p.posX;
             match.lastValidPosY[i] = p.posY;
 
-            // Guardamos tambien el tiempo aceptado para validar el siguiente movimiento contra este punto.
-            match.lastValidMovementTimestamp[i] = movement.timestamp;
+            // Confirmacion implicita: el servidor acepta hasta este movementID.
+            // El cliente lo usa como OK para borrar pendingMovements anteriores o iguales.
             match.lastProcessedMovementID[i] = movement.movementID;
             match.worldState.players[i].lastProcessedMovementID = movement.movementID;
 
