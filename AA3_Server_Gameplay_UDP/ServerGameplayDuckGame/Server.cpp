@@ -17,6 +17,9 @@ Server::~Server() {
         stopPool = true;
     }
     condition.notify_all();
+    receivedCondition.notify_all();
+    if (receiverThread.joinable()) receiverThread.join();
+    if (dispatcherThread.joinable()) dispatcherThread.join();
     for (std::thread& worker : workers) {
         if (worker.joinable()) worker.join();
     }
@@ -28,10 +31,18 @@ void Server::ThreadPoolWorker() {
         std::function<void()> task;
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            condition.wait(lock, [this] { return stopPool || !tasks.empty(); });
-            if (stopPool && tasks.empty()) return;
-            task = std::move(tasks.front());
-            tasks.pop();
+            condition.wait(lock, [this] { return stopPool || !urgentTasks.empty() || !tasks.empty(); });
+            if (stopPool && urgentTasks.empty() && tasks.empty()) return;
+
+            // Los workers priorizan los paquetes urgentes, pero siempre fuera del hilo de recepcion.
+            if (!urgentTasks.empty()) {
+                task = std::move(urgentTasks.front());
+                urgentTasks.pop();
+            }
+            else {
+                task = std::move(tasks.front());
+                tasks.pop();
+            }
         }
         task();
     }
@@ -41,6 +52,14 @@ void Server::EnqueueTask(std::function<void()> task) {
     {
         std::unique_lock<std::mutex> lock(queueMutex);
         tasks.push(task);
+    }
+    condition.notify_one();
+}
+
+void Server::EnqueueUrgentTask(std::function<void()> task) {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        urgentTasks.push(task);
     }
     condition.notify_one();
 }
@@ -220,6 +239,10 @@ void Server::Run() {
     isRunning = true;
     std::cout << "[SERVER UDP] escuchando gameplay en puerto " << port << std::endl;
 
+    // Un hilo solo recibe del socket y otro clasifica los mensajes para no bloquear la recepcion.
+    receiverThread = std::thread(&Server::ProcessPackets, this);
+    dispatcherThread = std::thread(&Server::DispatchPackets, this);
+
     const sf::Time timePerTick = sf::seconds(1.0f / 60.0f);
     sf::Clock tickClock;
     sf::Time timeSinceLastUpdate = sf::Time::Zero;
@@ -230,7 +253,7 @@ void Server::Run() {
             timeSinceLastUpdate -= timePerTick;
 
             // Se leen los paquetes UDP que estaban pendientes
-            ProcessPackets();
+            // ProcessPackets corre en receiverThread y solo encola mensajes recibidos.
 
             // Las partidas se protegen mientras se actualizan fisicas y estados
             std::unique_lock<std::mutex> lock(dataMutex);
@@ -258,59 +281,103 @@ void Server::ProcessPackets() {
     std::optional<sf::IpAddress> sender;
     unsigned short senderPort;
 
-    while (udpSocket.receive(buffer, sizeof(buffer), received, sender, senderPort) == sf::Socket::Status::Done) {
-        if (received < sizeof(uint8_t) + sizeof(short)) continue;
-        if (!sender.has_value()) continue;
+    while (isRunning && !stopPool) {
+        bool receivedAnyPacket = false;
 
-        uint8_t flags = buffer[0];
+        while (udpSocket.receive(buffer, sizeof(buffer), received, sender, senderPort) == sf::Socket::Status::Done) {
+            receivedAnyPacket = true;
+            if (received < sizeof(uint8_t) + sizeof(short)) continue;
+            if (!sender.has_value()) continue;
 
-        short packetType;
-        std::memcpy(&packetType, buffer + 1, sizeof(short));
+            ReceivedPacket packet;
+            packet.buffer.assign(buffer, buffer + received);
+            packet.received = received;
+            packet.sender = sender;
+            packet.senderPort = senderPort;
 
-        // PONG:
-        // El cliente responde a los Ping del servidor. Este paquete no mueve al jugador,
-        // solo demuestra que sigue vivo y permite calcular el RTT.
-        if (received == sizeof(C2S_PongPacket) && packetType == (short)PacketType::Pong) {
-            C2S_PongPacket pong;
-            std::memcpy(&pong, buffer, sizeof(C2S_PongPacket));
-
-            if (pong.matchID == 0) continue;
-
-            // El PONG tambien se procesa en la pool para seguir el mismo flujo productor-consumidor.
-            // ProcessPackets solo recibe bytes y hace memcpy; la logica queda en ProcessPongPacket.
-            std::function<void()> processPongPacket = [this, pong, sender, senderPort]() {
-                ProcessPongPacket(pong, sender, senderPort);
-                };
-
-            EnqueueTask(processPongPacket);
-            continue;
+            {
+                std::unique_lock<std::mutex> lock(receivedQueueMutex);
+                           
+                receivedPackets.push(std::move(packet));
+            }
+            receivedCondition.notify_one();
         }
 
-        if (received < sizeof(C2S_InputPacket)) continue;
+        if (!receivedAnyPacket) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+}
 
-        C2S_InputPacket in;
-        std::memcpy(&in, buffer, sizeof(C2S_InputPacket));
+void Server::DispatchPackets() {
+    while (true) {
+        ReceivedPacket packet;
+        {
+            std::unique_lock<std::mutex> lock(receivedQueueMutex);
+            receivedCondition.wait(lock, [this] { return stopPool || !receivedPackets.empty(); });
+            if (stopPool && receivedPackets.empty()) return;
 
-        if (in.matchID == 0) continue;
+            packet = std::move(receivedPackets.front());
+            receivedPackets.pop();
+        }
 
-        // Se prepara el procesamiento del paquete de input.
-        // Los paquetes normales se encolan en la ThreadPool.
-        // Los paquetes URGENT se procesan directamente para no esperar detras de movimientos normales.
-        // El datagrama ya se ha convertido con memcpy a C2S_InputPacket.
-        // La logica queda en ProcessInputPacket para evitar una lambda gigante con auto.
-        std::function<void()> processInputPacket = [this, in, flags, sender, senderPort]() {
-            ProcessInputPacket(in, flags, sender, senderPort);
+        DispatchReceivedPacket(packet);
+    }
+}
+
+void Server::DispatchReceivedPacket(const ReceivedPacket& packet) {
+    if (packet.received < sizeof(uint8_t) + sizeof(short)) return;
+    if (!packet.sender.has_value()) return;
+
+    const char* buffer = packet.buffer.data();
+    uint8_t flags = buffer[0];
+
+    short packetType;
+    std::memcpy(&packetType, buffer + 1, sizeof(short));
+
+    // PONG:
+    // El cliente responde a los Ping del servidor. Este paquete no mueve al jugador,
+    // solo demuestra que sigue vivo y permite calcular el RTT.
+    if (packet.received == sizeof(C2S_PongPacket) && packetType == (short)PacketType::Pong) {
+        C2S_PongPacket pong;
+        std::memcpy(&pong, buffer, sizeof(C2S_PongPacket));
+
+        if (pong.matchID == 0) return;
+
+        // El PONG tambien se procesa en la pool 
+        // ProcessPackets solo recibe bytes
+        std::function<void()> processPongPacket = [this, pong, sender = packet.sender, senderPort = packet.senderPort]() {
+            ProcessPongPacket(pong, sender, senderPort);
             };
 
-        if ((flags & URGENT_PACKET) != 0) {
-            // Los paquetes urgentes no esperan en la cola de tareas.
-            // Se procesan inmediatamente para que acciones como el disparo no se retrasen detras del movimiento normal.
-            processInputPacket();
-        }
-        else {
-            // El paquete pasa a un hilo para no frenar la recepcion UDP.
-            EnqueueTask(processInputPacket);
-        }
+        EnqueueTask(processPongPacket);
+        return;
+    }
+
+    if (packet.received < sizeof(C2S_InputPacket)) return;
+
+    C2S_InputPacket in;
+    std::memcpy(&in, buffer, sizeof(C2S_InputPacket));
+
+    if (in.matchID == 0) return;
+
+    // Se prepara el procesamiento del paquete de input.
+    // Los paquetes normales se encolan en la ThreadPool.
+    // Los paquetes URGENT se encolan en urgentTasks para no esperar detras de movimientos normales.
+    // El datagrama ya se ha convertido
+   
+    std::function<void()> processInputPacket = [this, in, flags, sender = packet.sender, senderPort = packet.senderPort]() {
+        ProcessInputPacket(in, flags, sender, senderPort);
+        };
+
+    if ((flags & URGENT_PACKET) != 0) {
+        // Los paquetes urgentes no esperan en la cola normal de tareas.
+        // Se encolan en urgentTasks para que los workers los procesen antes sin bloquear la recepcion.
+        EnqueueUrgentTask(processInputPacket);
+    }
+    else {
+        // El paquete pasa a un hilo para no frenar la recepcion UDP.
+        EnqueueTask(processInputPacket);
     }
 }
 
@@ -1015,6 +1082,8 @@ void Server::CheckTimeouts(MatchData& match) {
 
 void Server::Stop() {
     isRunning = false;
+    receivedCondition.notify_all();
+    condition.notify_all();
     matches.clear();
     udpSocket.unbind();
 }

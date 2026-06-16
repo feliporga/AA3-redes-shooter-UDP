@@ -35,8 +35,17 @@
 #define HORIZONTAL_VALIDATION_TIME_TOLERANCE 5
 #define VERTICAL_VALIDATION_TIME_TOLERANCE 16
 
+
+
 class Server {
 private:
+    struct ReceivedPacket {
+        std::vector<char> buffer;
+        std::size_t received;
+        std::optional<sf::IpAddress> sender;
+        unsigned short senderPort;
+    };
+
     struct ClientMovementSnapshot {
         unsigned short movementID;
         unsigned int timestamp;
@@ -107,17 +116,26 @@ private:
 
     // Los hilos usan estos datos para coger tareas pendientes
     std::vector<std::thread> workers;
+    std::thread receiverThread;
+    std::thread dispatcherThread;
+    std::queue<ReceivedPacket> receivedPackets;
+    std::queue<std::function<void()>> urgentTasks;
     std::queue<std::function<void()>> tasks;
+    std::mutex receivedQueueMutex;
     std::mutex queueMutex;
     std::mutex dataMutex; // Protege las partidas mientras varios hilos las usan.
+    std::condition_variable receivedCondition;
     std::condition_variable condition;
     bool stopPool;
 
     void ThreadPoolWorker();
     void EnqueueTask(std::function<void()> task);
+    void EnqueueUrgentTask(std::function<void()> task);
 
     // Estas son las funciones principales del servidor UDP
     void ProcessPackets();
+    void DispatchPackets();
+    void DispatchReceivedPacket(const ReceivedPacket& packet);
 
     // Procesa un PONG despues de haber hecho memcpy en ProcessPackets.
     // Asi se separa la recepcion/deserializacion de la logica del paquete.
