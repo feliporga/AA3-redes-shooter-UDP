@@ -59,6 +59,7 @@ public:
     short myPlayerID = 0;
     unsigned short currentMatchID = 0;
     bool isConnected = false;
+    bool connectionWarning = false;
 
     bool newRankingAvailable = false;
     std::vector<PlayerRanking> lastRanking;
@@ -305,6 +306,7 @@ public:
                 SendUDPPong(ping.pingID, ping.timestamp);
             }
             else if (type == (short)PacketType::UpdateBoard) {
+                connectionWarning = false;
                 if (received < sizeof(S2C_StatePacket)) continue;
 
                 S2C_StatePacket receivedState;
@@ -333,6 +335,10 @@ public:
                         i++;
                     }
                 }
+            }
+            else if (type == (short)PacketType::TimeoutWarning) {
+                connectionWarning = true;
+                std::cout << "[CLIENTE] ALERTA: El servidor va a desconectarnos por inactividad!" << std::endl;
             }
         }
     }

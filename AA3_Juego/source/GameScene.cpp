@@ -672,7 +672,15 @@ void GameScene::Update() {
         std::string hpInfo = "Mis Vidas: " + std::to_string(NM.lastState.players[myIndex].lives) +
             " | Mi HP: " + std::to_string(NM.lastState.players[myIndex].hp) +
             " --- HP Enemigo: " + std::to_string(NM.lastState.players[enemyIndex].hp);
-        statusText->SetText(hpInfo);
+
+        if (NM.connectionWarning) {
+            statusText->SetText("¡PELIGRO DE DESCONEXION! REVISA TU RED");
+            statusText->SetColor(sf::Color::Red);
+        }
+        else {
+            statusText->SetText(hpInfo);
+            statusText->SetColor(sf::Color::White); // Volver al color normal
+        }
 
         // La notificacion se mantiene unos segundos y despues vuelve a mostrar solamente el HUD
         if (showIrregularityMessage) {

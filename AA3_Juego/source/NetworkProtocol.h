@@ -5,7 +5,6 @@
 #define CRITICAL_PACKET 0b00000001
 #define URGENT_PACKET   0b00000010
 
-
 #define MAX_BULLETS 20
 
 // Numero maximo de irregularidades antes de dar la partida por perdida
@@ -54,7 +53,8 @@ enum class PacketType : short {
     CancelSearchRequest,
     CheckMapVersion,
     UpdateMap,
-    MapUpToDate
+    MapUpToDate,
+    TimeoutWarning
 };
 
 // Bitmask para las teclas (2 bytes)
@@ -136,13 +136,17 @@ struct PlayerState {
     unsigned short lastProcessedMovementID = 0;
 };
 
-
 struct BulletState {
     bool active;
     short posX;
     short posY;
     short velX;
     short ownerID;
+};
+
+struct S2C_TimeoutWarningPacket {
+    uint8_t flags = URGENT_PACKET; // Lo marcamos como urgente
+    short type = (short)PacketType::TimeoutWarning;
 };
 
 struct S2C_StatePacket {

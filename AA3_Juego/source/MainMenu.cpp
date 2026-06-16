@@ -6,9 +6,7 @@
 #include "InputManager.h"
 #include <iostream>
 
-bool MainMenu::isMusicMuted = false;
 bool MainMenu::isSfxMuted = false;
-bool MainMenu::isMenuMusicPlaying = false; // Inicializamos a falso
 
 MainMenu::MainMenu() : Scene() {
     winW = (float)RM->WINDOW_WIDTH;
@@ -18,20 +16,12 @@ MainMenu::MainMenu() : Scene() {
     txtCasual = nullptr; txtCompetitive = nullptr; txtCancel = nullptr;
 
     btnRanking = nullptr; txtRanking = nullptr;
-    btnMuteMusic = nullptr; txtMuteMusic = nullptr;
     btnMuteSFX = nullptr; txtMuteSFX = nullptr;
 
     isSearching = false;
 }
 
 void MainMenu::OnEnter() {
-    // --- MAGIA: Solo reproducimos si no está muteada Y si no estaba sonando ya ---
-    if (!isMusicMuted && !isMenuMusicPlaying) {
-        AM.PlaySong("menuMusic");
-        isMenuMusicPlaying = true; // Avisamos que ya está sonando
-        std::cout << "[CLIENTE] Playing Menu Music" << std::endl;
-    }
-
     isSearching = false;
 
     titleText = new TextObject("MATCHMAKING MULTIPLAYER");
@@ -73,12 +63,6 @@ void MainMenu::OnEnter() {
     txtRanking->GetTransform()->position = Vector2(winW / 2.0f - 160.0f, winH / 2.0f + 195.0f);
     SPAWN.SpawnObject(txtRanking);
 
-    btnMuteMusic = new Button(Vector2(20.0f, 20.0f), Vector2(220.0f, 40.0f), sf::Color(100, 100, 100), "", Button::ActionType::None);
-    txtMuteMusic = new TextObject(isMusicMuted ? "MUSIC: OFF" : "MUSIC: ON");
-    txtMuteMusic->GetTransform()->position = Vector2(35.0f, 25.0f);
-    SPAWN.SpawnObject(btnMuteMusic);
-    SPAWN.SpawnObject(txtMuteMusic);
-
     btnMuteSFX = new Button(Vector2(20.0f, 70.0f), Vector2(220.0f, 40.0f), sf::Color(100, 100, 100), "", Button::ActionType::None);
     txtMuteSFX = new TextObject(isSfxMuted ? "SFX: OFF" : "SFX: ON");
     txtMuteSFX->GetTransform()->position = Vector2(35.0f, 75.0f);
@@ -92,11 +76,6 @@ void MainMenu::Update() {
     // Comprobamos si ha empezado la partida
     if (NM.gameStarted) {
         NM.gameStarted = false;
-
-        // --- PARAR AUDIO AQUÍ ---
-        // Al entrar al juego apagamos la música del menú y reseteamos el estado
-        AM.StopAudio();
-        isMenuMusicPlaying = false;
 
         SM.SetNextScene("GameScene");
         return;
@@ -114,21 +93,6 @@ void MainMenu::Update() {
         if (mx >= bx && mx <= bx + 600.0f && my >= (winH / 2.0f + 180.0f) && my <= (winH / 2.0f + 230.0f)) {
             SM.SetNextScene("Ranking");
             return;
-        }
-
-        // HITBOX DE MUTEAR MUSICA
-        if (mx >= 20.0f && mx <= 240.0f && my >= 20.0f && my <= 60.0f) {
-            isMusicMuted = !isMusicMuted;
-            if (isMusicMuted) {
-                txtMuteMusic->SetText("MUSIC: OFF");
-                AM.StopAudio();
-                isMenuMusicPlaying = false; // Actualizamos estado
-            }
-            else {
-                txtMuteMusic->SetText("MUSIC: ON");
-                AM.PlaySong("menuMusic");
-                isMenuMusicPlaying = true;  // Actualizamos estado
-            }
         }
 
         // HITBOX DE MUTEAR SFX

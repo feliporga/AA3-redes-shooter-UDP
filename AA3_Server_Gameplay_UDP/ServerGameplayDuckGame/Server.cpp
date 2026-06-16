@@ -987,7 +987,11 @@ void Server::CheckTimeouts(MatchData& match) {
             match.timeoutWarningShown[i] = true;
             std::cout << "[PING/PONG] jugador "
                 << match.worldState.players[i].id
-                << " no responde PONG, avisando" << std::endl;
+                << " no responde PONG, enviando AVISO URGENTE al cliente" << std::endl;
+            if (match.clientIPs[i].has_value()) {
+                S2C_TimeoutWarningPacket warningPacket;
+                udpSocket.send(&warningPacket, sizeof(S2C_TimeoutWarningPacket), match.clientIPs[i].value(), match.clientPorts[i]);
+            }
         }
 
         // Si el timeout se cumple el jugador pierde y gana el rival
