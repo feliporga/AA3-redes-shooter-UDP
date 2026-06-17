@@ -1,4 +1,4 @@
-#include "GameScene.h"
+ï»¿#include "GameScene.h"
 #include "NetworkManager.h"
 #include "RenderManager.h"
 #include "Spawner.h"
@@ -224,12 +224,25 @@ void GameScene::ApplyLocalPrediction(short inputMask) {
 void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
 
+    static bool backAlreadyApplied = false;
+    static unsigned short lastBackMovementID = 0;
+    static short lastBackPosX = 0;
+    static short lastBackPosY = 0;
+
     bool mustGoBack = NM.lastState.movementBackRequired &&
         NM.lastState.backPlayerID == NM.myPlayerID;
 
     if (mustGoBack) {
-        // BACK:
-        // El servidor ha detectado una posicion mala o un respawn y nos obliga a volver al ultimo punto valido.
+        bool sameBack =
+            backAlreadyApplied &&
+            lastBackMovementID == NM.lastState.backMovementID &&
+            lastBackPosX == NM.lastState.backPosX &&
+            lastBackPosY == NM.lastState.backPosY;
+
+        if (sameBack) {
+            return;
+        }
+
         playerModels[localIndex].transform.position =
             Vector2((float)NM.lastState.backPosX, (float)NM.lastState.backPosY);
 
@@ -237,26 +250,29 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         localPredictedVelY = 0;
         localPredictedOnGround = serverPlayer.onGround;
 
-        // Como el servidor dice BACK, cancelamos los movimientos posteriores almacenados.
         pendingMovements.clear();
 
-        // Despues de un BACK, evitamos reutilizar IDs antiguos.
-        if (nextMovementID <= NM.lastState.backMovementID) {
-            nextMovementID = NM.lastState.backMovementID + 1;
-        }
+        // IMPORTANTE:
+        // Despues de un BACK se reinicia SIEMPRE desde el ultimo ID bueno + 1.
+        // Si no, el cliente sigue con IDs adelantados y el servidor detecta salto grande.
+        nextMovementID = NM.lastState.backMovementID + 1;
+
+        backAlreadyApplied = true;
+        lastBackMovementID = NM.lastState.backMovementID;
+        lastBackPosX = NM.lastState.backPosX;
+        lastBackPosY = NM.lastState.backPosY;
 
         std::cout << "[RECONCILIACION] BACK/" << NM.lastState.backMovementID
             << " -> (" << NM.lastState.backPosX << ", " << NM.lastState.backPosY << ")" << std::endl;
         return;
     }
 
-    // Reconciliacion normal: volvemos al estado autoritativo del servidor, eliminamos los inputs ya confirmados y re-simulamos los inputs que todavia estan pendientes.
+    backAlreadyApplied = false;
+
     short baseVelX = serverPlayer.velX;
     short baseVelY = serverPlayer.velY;
     bool baseOnGround = serverPlayer.onGround;
 
-    // Buscamos el movimiento que acaba de confirmar el servidor.
-    // Si lo tenemos guardado, usamos su velocidad local para no cortar el salto.
     for (std::size_t i = 0; i < pendingMovements.size(); i++) {
         if (pendingMovements[i].movementID == serverPlayer.lastProcessedMovementID) {
             baseVelX = pendingMovements[i].velX;
@@ -275,13 +291,11 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         }
     }
 
-    // Punto de partida autoritativo: el servidor manda la posicion/velocidad hasta el ultimo input validado.
     playerModels[localIndex].transform.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
     localPredictedVelX = baseVelX;
     localPredictedVelY = baseVelY;
     localPredictedOnGround = baseOnGround;
 
-    // Re-aplicamos los inputs que el cliente ya habia predicho pero el servidor aun no ha confirmado.
     for (std::size_t i = 0; i < pendingMovements.size(); i++) {
         SimulateLocalMovement(
             pendingMovements[i].inputMask,
@@ -290,7 +304,6 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
             localPredictedVelY,
             localPredictedOnGround);
 
-        // Actualizamos la posicion predicha asociada al input por si se vuelve a validar desde este estado corregido.
         pendingMovements[i].posX = (short)playerModels[localIndex].transform.position.x;
         pendingMovements[i].posY = (short)playerModels[localIndex].transform.position.y;
         pendingMovements[i].velX = localPredictedVelX;
@@ -298,7 +311,6 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         pendingMovements[i].onGround = localPredictedOnGround;
     }
 }
-
 void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp) {
     RemoteSnapshot newSnapshot;
     newSnapshot.timestamp = timestamp;
@@ -308,7 +320,7 @@ void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int 
     bool inserted = false;
 
     // Los estados del rival se guardan ordenados aunque los paquetes UDP lleguen desordenados
-    // no provoquen que el personaje vuelva atrás en pantalla.
+    // no provoquen que el personaje vuelva atrï¿½s en pantalla.
     for (std::vector<RemoteSnapshot>::iterator it = remoteSnapshots.begin(); it != remoteSnapshots.end(); ++it) {
         if (it->movementID == newSnapshot.movementID && it->timestamp == newSnapshot.timestamp) {
             return;
@@ -340,7 +352,7 @@ void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
         hasServerTimeOffset = true;
     }
 
-    // El rival se dibuja con un pequeño retraso para poder suavizar el movimiento
+    // El rival se dibuja con un pequeï¿½o retraso para poder suavizar el movimiento
     // entre los que interpolar y evitar teletransportes
     int renderTimestamp =
         (int)currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
@@ -627,17 +639,17 @@ void GameScene::Update() {
         }
 
         if (NM.lastState.winnerID == NM.myPlayerID) {
-            statusText->SetText("¡VICTORIA! Has ganado la partida.");
+            statusText->SetText("ï¿½VICTORIA! Has ganado la partida.");
             statusText->SetColor(sf::Color::Green);
         }
 
         else if (lostByIrregularities) {
-            statusText->SetText("¡DERROTA POR IRREGULARIDADES!");
+            statusText->SetText("ï¿½DERROTA POR IRREGULARIDADES!");
             statusText->SetColor(sf::Color::Red);
         }
 
         else {
-            statusText->SetText("¡DERROTA! Te has quedado sin vidas.");
+            statusText->SetText("ï¿½DERROTA! Te has quedado sin vidas.");
             statusText->SetColor(sf::Color::Red);
         }
         // La cuenta atras evita volver al menu de golpe
@@ -648,15 +660,15 @@ void GameScene::Update() {
         }
 
         if (NM.lastState.winnerID == NM.myPlayerID) {
-            statusText->SetText("¡VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("ï¿½VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Green);
         }
         else if (lostByIrregularities) {
-            statusText->SetText("¡DERROTA POR IRREGULARIDADES! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("ï¿½DERROTA POR IRREGULARIDADES! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Red);
         }
         else {
-            statusText->SetText("¡DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("ï¿½DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Red);
         }
 
@@ -674,7 +686,7 @@ void GameScene::Update() {
             " --- HP Enemigo: " + std::to_string(NM.lastState.players[enemyIndex].hp);
 
         if (NM.connectionWarning) {
-            statusText->SetText("¡PELIGRO DE DESCONEXION! REVISA TU RED");
+            statusText->SetText("ï¿½PELIGRO DE DESCONEXION! REVISA TU RED");
             statusText->SetColor(sf::Color::Red);
         }
         else {

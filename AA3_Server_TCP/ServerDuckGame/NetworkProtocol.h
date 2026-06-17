@@ -54,7 +54,11 @@ enum class PacketType : short {
     CheckMapVersion,
     UpdateMap,
     MapUpToDate,
-    TimeoutWarning
+    TimeoutWarning,
+    PlayerPositionUpdate,
+    BulletUpdate,
+    CorrectionUpdate,
+    GameOverUpdate
 };
 
 // Bitmask para las teclas (2 bytes)
@@ -146,6 +150,59 @@ struct BulletState {
 struct S2C_TimeoutWarningPacket {
     uint8_t flags = URGENT_PACKET; // Lo marcamos como urgente
     short type = (short)PacketType::TimeoutWarning;
+};
+
+// Update de posicion de un jugador (Servidor UDP -> Cliente)
+
+// posicion buena del jugador, cliente la guarda para interpolar.
+struct S2C_PlayerPositionUpdatePacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::PlayerPositionUpdate;
+    unsigned int timestamp = 0;
+    unsigned short matchID = 0;
+    PlayerState player;
+};
+
+// Update de balas (Servidor UDP -> Cliente)
+
+struct S2C_BulletUpdatePacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::BulletUpdate;
+    unsigned int timestamp = 0;
+    unsigned short matchID = 0;
+    BulletState bullets[MAX_BULLETS];
+};
+
+// Update de correccion/reconciliacion (Servidor UDP -> Cliente)
+// Solo se envia cuando el servidor detecta irregularidad o necesita mandar BACK.
+struct S2C_CorrectionUpdatePacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::CorrectionUpdate;
+    unsigned int timestamp = 0;
+    unsigned short matchID = 0;
+
+    bool correctionRequired = false;
+    short irregularPlayerID = 0;
+    short irregularityCount = 0;
+    unsigned short irregularityEventID = 0;
+
+    bool movementBackRequired = false;
+    short backPlayerID = 0;
+    unsigned short backMovementID = 0;
+    short backPosX = 0;
+    short backPosY = 0;
+};
+
+// Update de fin de partida (Servidor UDP -> Cliente)
+struct S2C_GameOverUpdatePacket {
+    uint8_t flags = NORMAL_PACKET;
+    short type = (short)PacketType::GameOverUpdate;
+    unsigned int timestamp = 0;
+    unsigned short matchID = 0;
+    bool isGameOver = false;
+    short winnerID = 0;
+    bool gameOverByIrregularities = false;
+    short irregularPlayerID = 0;
 };
 
 struct S2C_StatePacket {

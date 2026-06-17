@@ -48,6 +48,57 @@ private:
         serverUdpIp = sf::IpAddress::resolve(SERVER_UDP_IP);
     }
 
+    void ClearTransientUpdateState() {
+        // Estos campos son eventos temporales.
+        // Si no se limpian al empezar un tick nuevo, el cliente puede aplicar un BACK antiguo para siempre.
+        lastState.correctionRequired = false;
+        lastState.irregularPlayerID = 0;
+        lastState.irregularityCount = 0;
+
+        lastState.movementBackRequired = false;
+        lastState.backPlayerID = 0;
+        lastState.backMovementID = 0;
+        lastState.backPosX = 0;
+        lastState.backPosY = 0;
+    }
+
+    bool PrepareIncomingUpdate(unsigned int timestamp, unsigned short matchID) {
+        if (matchID != currentMatchID) return false;
+
+        // Si llega un update antiguo por UDP, no lo usamos para reconstruir estado.
+        if (lastState.timestamp != 0 && timestamp < lastState.timestamp) {
+            return false;
+        }
+
+        // Tick nuevo: reseteamos lo recibido para no mezclar jugadores/balas/correcciones antiguas.
+        if (timestamp != lastState.timestamp) {
+            lastState.matchID = matchID;
+            lastState.timestamp = timestamp;
+
+            receivedPlayerUpdate[0] = false;
+            receivedPlayerUpdate[1] = false;
+            receivedBulletUpdate = false;
+            receivedCorrectionUpdate = false;
+            baseStateQueued = false;
+
+            ClearTransientUpdateState();
+        }
+
+        return true;
+    }
+
+    void TryQueueBaseState() {
+        if (receivedPlayerUpdate[0] &&
+            receivedPlayerUpdate[1] &&
+            receivedBulletUpdate &&
+            receivedCorrectionUpdate &&
+            !baseStateQueued) {
+            pendingStates.push_back(lastState);
+            newStateReceived = true;
+            baseStateQueued = true;
+        }
+    }
+
 public:
     std::string GetSavedUser() const { return savedUser; }
 
@@ -75,6 +126,13 @@ public:
     // Estados recibidos del servidor.
     // Se guardan en cola para que la interpolacion no pierda snapshots si llegan varios entre dos frames.
     std::vector<S2C_StatePacket> pendingStates;
+
+    // Como ahora el servidor envia updates separados, esperamos a tener jugadores, balas
+    // y correccion del mismo tick antes de entregar un estado sintetizado a GameScene.
+    bool receivedPlayerUpdate[2] = { false, false };
+    bool receivedBulletUpdate = false;
+    bool receivedCorrectionUpdate = false;
+    bool baseStateQueued = false;
 
     unsigned short dynamicUdpPort = SERVER_UDP_PORT;
     // TCP
@@ -192,6 +250,11 @@ public:
 
                     // Al empezar una partida nueva no queremos procesar snapshots de la partida anterior.
                     pendingStates.clear();
+                    receivedPlayerUpdate[0] = false;
+                    receivedPlayerUpdate[1] = false;
+                    receivedBulletUpdate = false;
+                    receivedCorrectionUpdate = false;
+                    baseStateQueued = false;
                     unackedPackets.clear();
                     nextPacketID = 1;
 
@@ -303,7 +366,88 @@ public:
                 // El PONG conserva el timestamp original para que el servidor calcule RTT.
                 SendUDPPong(ping.pingID, ping.timestamp);
             }
+            else if (type == (short)PacketType::PlayerPositionUpdate) {
+                connectionWarning = false;
+                if (received < sizeof(S2C_PlayerPositionUpdatePacket)) continue;
+
+                S2C_PlayerPositionUpdatePacket playerUpdate;
+                std::memcpy(&playerUpdate, buffer, sizeof(S2C_PlayerPositionUpdatePacket));
+
+                if (!PrepareIncomingUpdate(playerUpdate.timestamp, playerUpdate.matchID)) continue;
+
+                short index = playerUpdate.player.id - 1;
+                if (index < 0 || index >= 2) continue;
+
+                // El servidor envia updates de posicion, no un snapshot completo.
+                // El cliente reconstruye su ultimo estado localmente para que GameScene pueda seguir trabajando igual.
+                lastState.players[index] = playerUpdate.player;
+                receivedPlayerUpdate[index] = true;
+
+                TryQueueBaseState();
+            }
+            else if (type == (short)PacketType::BulletUpdate) {
+                connectionWarning = false;
+                if (received < sizeof(S2C_BulletUpdatePacket)) continue;
+
+                S2C_BulletUpdatePacket bulletUpdate;
+                std::memcpy(&bulletUpdate, buffer, sizeof(S2C_BulletUpdatePacket));
+
+                if (!PrepareIncomingUpdate(bulletUpdate.timestamp, bulletUpdate.matchID)) continue;
+
+                for (short i = 0; i < MAX_BULLETS; i++) {
+                    lastState.bullets[i] = bulletUpdate.bullets[i];
+                }
+
+                receivedBulletUpdate = true;
+
+                // Entregamos el estado base solo cuando ya tenemos jugadores, balas y correccion del mismo tick.
+                TryQueueBaseState();
+            }
+            else if (type == (short)PacketType::CorrectionUpdate) {
+                connectionWarning = false;
+                if (received < sizeof(S2C_CorrectionUpdatePacket)) continue;
+
+                S2C_CorrectionUpdatePacket correctionUpdate;
+                std::memcpy(&correctionUpdate, buffer, sizeof(S2C_CorrectionUpdatePacket));
+
+                if (!PrepareIncomingUpdate(correctionUpdate.timestamp, correctionUpdate.matchID)) continue;
+
+                lastState.correctionRequired = correctionUpdate.correctionRequired;
+                lastState.irregularPlayerID = correctionUpdate.irregularPlayerID;
+                lastState.irregularityCount = correctionUpdate.irregularityCount;
+                lastState.irregularityEventID = correctionUpdate.irregularityEventID;
+
+                lastState.movementBackRequired = correctionUpdate.movementBackRequired;
+                lastState.backPlayerID = correctionUpdate.backPlayerID;
+                lastState.backMovementID = correctionUpdate.backMovementID;
+                lastState.backPosX = correctionUpdate.backPosX;
+                lastState.backPosY = correctionUpdate.backPosY;
+
+                receivedCorrectionUpdate = true;
+
+                // Ahora el estado se entrega una sola vez por tick,
+                // con posiciones + balas + correccion ya coherentes.
+                TryQueueBaseState();
+            }
+            else if (type == (short)PacketType::GameOverUpdate) {
+                connectionWarning = false;
+                if (received < sizeof(S2C_GameOverUpdatePacket)) continue;
+
+                S2C_GameOverUpdatePacket gameOverUpdate;
+                std::memcpy(&gameOverUpdate, buffer, sizeof(S2C_GameOverUpdatePacket));
+
+                if (!PrepareIncomingUpdate(gameOverUpdate.timestamp, gameOverUpdate.matchID)) continue;
+
+                lastState.isGameOver = gameOverUpdate.isGameOver;
+                lastState.winnerID = gameOverUpdate.winnerID;
+                lastState.gameOverByIrregularities = gameOverUpdate.gameOverByIrregularities;
+                lastState.irregularPlayerID = gameOverUpdate.irregularPlayerID;
+
+                pendingStates.push_back(lastState);
+                newStateReceived = true;
+            }
             else if (type == (short)PacketType::UpdateBoard) {
+                // Compatibilidad con la version antigua por si se recibe un snapshot completo.
                 connectionWarning = false;
                 if (received < sizeof(S2C_StatePacket)) continue;
 
@@ -313,8 +457,12 @@ public:
                 if (receivedState.matchID != currentMatchID) continue;
 
                 lastState = receivedState;
+                receivedPlayerUpdate[0] = true;
+                receivedPlayerUpdate[1] = true;
+                receivedBulletUpdate = true;
+                receivedCorrectionUpdate = true;
+                baseStateQueued = true;
 
-                // Guardamos cada snapshot recibido para que GameScene pueda alimentar la interpolacion con todos ellos.
                 pendingStates.push_back(receivedState);
                 newStateReceived = true;
             }

@@ -170,7 +170,7 @@ void Server::RegisterIrregularity(MatchData& match, short playerIndex, const std
         << " irregularidad " << match.irregularities[playerIndex]
         << "/" << MAX_IRREGULARITIES << ": " << reason << std::endl;
 
-    // Si acumula tres irregularidades pierde  maticamente la partida
+    // Si acumula tres irregularidades pierde automaticamente la partida
     if (match.irregularities[playerIndex] >= MAX_IRREGULARITIES) {
         short winnerIndex = (playerIndex == 0) ? 1 : 0;
 
@@ -344,7 +344,7 @@ void Server::DispatchReceivedPacket(const ReceivedPacket& packet) {
 
         if (pong.matchID == 0) return;
 
-        // El PONG tambien se procesa en la pool 
+        // El PONG tambien se procesa en la pool
         // ProcessPackets solo recibe bytes
         std::function<void()> processPongPacket = [this, pong, sender = packet.sender, senderPort = packet.senderPort]() {
             ProcessPongPacket(pong, sender, senderPort);
@@ -450,6 +450,19 @@ void Server::ProcessInputPacket(
             match.hasRTT[i] = false;
             match.timeoutWarningShown[i] = false;
         }
+
+        // Al reiniciar la sala se limpian tambien eventos temporales.
+        match.worldState.correctionRequired = false;
+        match.worldState.irregularPlayerID = 0;
+        match.worldState.irregularityCount = 0;
+        match.worldState.irregularityEventID = 0;
+        match.worldState.gameOverByIrregularities = false;
+
+        match.worldState.movementBackRequired = false;
+        match.worldState.backPlayerID = 0;
+        match.worldState.backMovementID = 0;
+        match.worldState.backPosX = 0;
+        match.worldState.backPosY = 0;
 
         match.pingClock.restart();
         return;
@@ -873,15 +886,93 @@ bool Server::CheckTileCollision(short x, short y, short w, short h) {
     return false;
 }
 
-// El estado actual se envia a cada cliente
+
+//posiciones de jugadores, balas, correcciones y game over.
 void Server::BroadcastState(MatchData& match) {
-    match.worldState.timestamp = match.serverClock.getElapsedTime().asMilliseconds();
+    unsigned int timestamp = match.serverClock.getElapsedTime().asMilliseconds();
+    match.worldState.timestamp = timestamp;
 
     for (short i = 0; i < 2; i++) {
         match.worldState.players[i].lastProcessedMovementID = (unsigned short)match.lastProcessedMovementID[i];
+    }
 
-        if (match.clientConnected[i] && match.clientIPs[i].has_value()) {
-            udpSocket.send(&match.worldState, sizeof(S2C_StatePacket), match.clientIPs[i].value(), match.clientPorts[i]);
+    for (short clientIndex = 0; clientIndex < 2; clientIndex++) {
+        if (!match.clientConnected[clientIndex] || !match.clientIPs[clientIndex].has_value()) {
+            continue;
+        }
+
+        // movimiento/interpolacion:
+        // se envian posiciones buenas de jugadores
+        for (short playerIndex = 0; playerIndex < 2; playerIndex++) {
+            S2C_PlayerPositionUpdatePacket playerUpdate;
+            playerUpdate.timestamp = timestamp;
+            playerUpdate.matchID = match.worldState.matchID;
+            playerUpdate.player = match.worldState.players[playerIndex];
+
+            udpSocket.send(
+                &playerUpdate,
+                sizeof(S2C_PlayerPositionUpdatePacket),
+                match.clientIPs[clientIndex].value(),
+                match.clientPorts[clientIndex]
+            );
+        }
+
+        // Las balas se envian como update separado para no mezclarlo con la posicion de jugadores.
+        S2C_BulletUpdatePacket bulletUpdate;
+        bulletUpdate.timestamp = timestamp;
+        bulletUpdate.matchID = match.worldState.matchID;
+
+        for (short bulletIndex = 0; bulletIndex < MAX_BULLETS; bulletIndex++) {
+            bulletUpdate.bullets[bulletIndex] = match.worldState.bullets[bulletIndex];
+        }
+
+        udpSocket.send(
+            &bulletUpdate,
+            sizeof(S2C_BulletUpdatePacket),
+            match.clientIPs[clientIndex].value(),
+            match.clientPorts[clientIndex]
+        );
+
+        // Enviamos tambien el update de correccion aunque este desactivado.
+        // Esto evita que el cliente se quede con un BACK antiguo pegado si hubo respawn/correccion.
+        S2C_CorrectionUpdatePacket correctionUpdate;
+        correctionUpdate.timestamp = timestamp;
+        correctionUpdate.matchID = match.worldState.matchID;
+
+        correctionUpdate.correctionRequired = match.worldState.correctionRequired;
+        correctionUpdate.irregularPlayerID = match.worldState.irregularPlayerID;
+        correctionUpdate.irregularityCount = match.worldState.irregularityCount;
+        correctionUpdate.irregularityEventID = match.worldState.irregularityEventID;
+
+        correctionUpdate.movementBackRequired = match.worldState.movementBackRequired;
+        correctionUpdate.backPlayerID = match.worldState.backPlayerID;
+        correctionUpdate.backMovementID = match.worldState.backMovementID;
+        correctionUpdate.backPosX = match.worldState.backPosX;
+        correctionUpdate.backPosY = match.worldState.backPosY;
+
+        udpSocket.send(
+            &correctionUpdate,
+            sizeof(S2C_CorrectionUpdatePacket),
+            match.clientIPs[clientIndex].value(),
+            match.clientPorts[clientIndex]
+        );
+
+        // El final de partida tambien va en un update especifico.
+        if (match.worldState.isGameOver) {
+            S2C_GameOverUpdatePacket gameOverUpdate;
+            gameOverUpdate.timestamp = timestamp;
+            gameOverUpdate.matchID = match.worldState.matchID;
+            gameOverUpdate.isGameOver = match.worldState.isGameOver;
+            gameOverUpdate.winnerID = match.worldState.winnerID;
+            gameOverUpdate.gameOverByIrregularities = match.worldState.gameOverByIrregularities;
+            gameOverUpdate.irregularPlayerID = match.worldState.irregularPlayerID;
+
+            udpSocket.send(
+                &gameOverUpdate,
+                sizeof(S2C_GameOverUpdatePacket),
+                match.clientIPs[clientIndex].value(),
+                match.clientPorts[clientIndex]
+            );
         }
     }
 }
