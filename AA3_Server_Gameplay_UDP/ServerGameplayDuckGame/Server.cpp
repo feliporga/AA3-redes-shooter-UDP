@@ -485,9 +485,6 @@ void Server::ProcessInputPacket(
 
     // Un jugador ya conocido no puede enviar un identificador que no exista
     if (idx < 0 || idx >= 2) {
-        if (senderPlayerIndex != -1) {
-            RegisterIrregularity(match, senderPlayerIndex, "playerID no valido");
-        }
         return;
     }
 
@@ -520,8 +517,6 @@ void Server::ProcessInputPacket(
         match.clientPorts[idx] != senderPort) {
         // Si un origen desconocido intenta usar un slot ocupado el paquete se rechaza
         // No se suma falta al jugador real porque puede tratarse de un tercero
-        std::cout << "[ANTI-CHEAT] paquete rechazado para jugador "
-            << in.playerID << " desde origen no registrado" << std::endl;
         return;
     }
 
@@ -531,35 +526,19 @@ void Server::ProcessInputPacket(
     // FLAGS:
     // NORMAL_PACKET = 0, CRITICAL_PACKET = 1, URGENT_PACKET = 2.
 
-    const uint8_t allowedFlagMask = CRITICAL_PACKET | URGENT_PACKET;
-    if ((flags & ~allowedFlagMask) != 0) {
-        RegisterIrregularity(match, idx, "flags de paquete no validos");
+    if (flags != NORMAL_PACKET &&
+        flags != CRITICAL_PACKET &&
+        flags != (CRITICAL_PACKET | URGENT_PACKET)) {
         return;
     }
 
     bool isCriticalPacket = (flags & CRITICAL_PACKET) != 0;
-    bool isUrgentPacket = (flags & URGENT_PACKET) != 0;
-
-    // En esta practica no tenemos acciones urgentes que no sean criticas.
-    // Por tanto, URGENT solo es valido combinado con CRITICAL.
-    if (isUrgentPacket && !isCriticalPacket) {
-        RegisterIrregularity(match, idx, "paquete urgente sin ser critico");
-        return;
-    }
 
     // Los paquetes importantes se confirman con ACK para no repetirlos.
     // El disparo es critico porque necesita ACK y urgente porque se procesa con prioridad.
     if (isCriticalPacket) {
         // Los paquetes criticos/urgentes de este juego solo pueden representar un disparo
         if (in.packetID == 0 || in.inputMask != INPUT_SHOOT || in.movementID != 0) {
-            RegisterIrregularity(match, idx, "paquete critico/urgente no valido");
-            return;
-        }
-
-        // Si alguien manda un disparo critico sin URGENT, lo rechazamos para que la implementacion
-        // quede coherente con la teoria de combinacion de flags.
-        if (!isUrgentPacket) {
-            RegisterIrregularity(match, idx, "disparo critico sin flag urgente");
             return;
         }
 
@@ -603,9 +582,7 @@ void Server::ProcessInputPacket(
     }
 
     // El movimiento normal puede moverse saltar o hacer burla pero no disparar
-    short allowedMovementMask = INPUT_LEFT | INPUT_RIGHT | INPUT_JUMP | INPUT_TAUNT;
-    if ((in.inputMask & ~allowedMovementMask) != 0) {
-        RegisterIrregularity(match, idx, "input de movimiento no permitido");
+    if ((in.inputMask & INPUT_SHOOT) != 0) {
         return;
     }
 
@@ -615,7 +592,7 @@ void Server::ProcessInputPacket(
         return;
     }
 
-    // La validacion normal ya no depende del timestamp del cliente.
+  
     // Si el ID ya esta confirmado o es antiguo, se ignora; si es nuevo, se guarda ordenado.
     if (in.movementID > match.lastProcessedMovementID[idx]) {
         match.playerInputs[idx] = in.inputMask;
