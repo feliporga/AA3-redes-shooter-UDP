@@ -393,7 +393,13 @@ public:
                 if (received < sizeof(S2C_PingPacket)) continue;
 
                 S2C_PingPacket ping;
-                std::memcpy(&ping, buffer, sizeof(S2C_PingPacket));
+                size_t offset = 0;
+                std::memcpy(&ping.flags, buffer + offset, sizeof(ping.flags)); offset += sizeof(ping.flags);
+                std::memcpy(&ping.type, buffer + offset, sizeof(ping.type)); offset += sizeof(ping.type);
+                std::memcpy(&ping.matchID, buffer + offset, sizeof(ping.matchID)); offset += sizeof(ping.matchID);
+                std::memcpy(&ping.playerID, buffer + offset, sizeof(ping.playerID)); offset += sizeof(ping.playerID);
+                std::memcpy(&ping.pingID, buffer + offset, sizeof(ping.pingID)); offset += sizeof(ping.pingID);
+                std::memcpy(&ping.timestamp, buffer + offset, sizeof(ping.timestamp)); offset += sizeof(ping.timestamp);
 
                 if (ping.matchID != currentMatchID) continue;
                 if (ping.playerID != 0 && ping.playerID != myPlayerID) continue;
@@ -408,7 +414,23 @@ public:
                 if (received < sizeof(S2C_PlayerPositionUpdatePacket)) continue;
 
                 S2C_PlayerPositionUpdatePacket playerUpdate;
-                std::memcpy(&playerUpdate, buffer, sizeof(S2C_PlayerPositionUpdatePacket));
+                size_t offset = 0;
+                std::memcpy(&playerUpdate.flags, buffer + offset, sizeof(playerUpdate.flags)); offset += sizeof(playerUpdate.flags);
+                std::memcpy(&playerUpdate.type, buffer + offset, sizeof(playerUpdate.type)); offset += sizeof(playerUpdate.type);
+                std::memcpy(&playerUpdate.timestamp, buffer + offset, sizeof(playerUpdate.timestamp)); offset += sizeof(playerUpdate.timestamp);
+                std::memcpy(&playerUpdate.matchID, buffer + offset, sizeof(playerUpdate.matchID)); offset += sizeof(playerUpdate.matchID);
+
+                std::memcpy(&playerUpdate.player.id, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.posX, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.posY, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.velX, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.velY, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.onGround, buffer + offset, sizeof(bool)); offset += sizeof(bool);
+                std::memcpy(&playerUpdate.player.facingRight, buffer + offset, sizeof(bool)); offset += sizeof(bool);
+                std::memcpy(&playerUpdate.player.isTaunting, buffer + offset, sizeof(bool)); offset += sizeof(bool);
+                std::memcpy(&playerUpdate.player.hp, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.lives, buffer + offset, sizeof(short)); offset += sizeof(short);
+                std::memcpy(&playerUpdate.player.lastProcessedMovementID, buffer + offset, sizeof(unsigned short)); offset += sizeof(unsigned short);
 
                 if (!PrepareIncomingUpdate(playerUpdate.timestamp, playerUpdate.matchID)) continue;
 
@@ -427,7 +449,19 @@ public:
                 if (received < sizeof(S2C_BulletUpdatePacket)) continue;
 
                 S2C_BulletUpdatePacket bulletUpdate;
-                std::memcpy(&bulletUpdate, buffer, sizeof(S2C_BulletUpdatePacket));
+                size_t offset = 0;
+                std::memcpy(&bulletUpdate.flags, buffer + offset, sizeof(bulletUpdate.flags)); offset += sizeof(bulletUpdate.flags);
+                std::memcpy(&bulletUpdate.type, buffer + offset, sizeof(bulletUpdate.type)); offset += sizeof(bulletUpdate.type);
+                std::memcpy(&bulletUpdate.timestamp, buffer + offset, sizeof(bulletUpdate.timestamp)); offset += sizeof(bulletUpdate.timestamp);
+                std::memcpy(&bulletUpdate.matchID, buffer + offset, sizeof(bulletUpdate.matchID)); offset += sizeof(bulletUpdate.matchID);
+
+                for (short b = 0; b < MAX_BULLETS; b++) {
+                    std::memcpy(&bulletUpdate.bullets[b].active, buffer + offset, sizeof(bool)); offset += sizeof(bool);
+                    std::memcpy(&bulletUpdate.bullets[b].posX, buffer + offset, sizeof(short)); offset += sizeof(short);
+                    std::memcpy(&bulletUpdate.bullets[b].posY, buffer + offset, sizeof(short)); offset += sizeof(short);
+                    std::memcpy(&bulletUpdate.bullets[b].velX, buffer + offset, sizeof(short)); offset += sizeof(short);
+                    std::memcpy(&bulletUpdate.bullets[b].ownerID, buffer + offset, sizeof(short)); offset += sizeof(short);
+                }
 
                 if (!PrepareIncomingUpdate(bulletUpdate.timestamp, bulletUpdate.matchID)) continue;
 
@@ -445,7 +479,20 @@ public:
                 if (received < sizeof(S2C_CorrectionUpdatePacket)) continue;
 
                 S2C_CorrectionUpdatePacket correctionUpdate;
-                std::memcpy(&correctionUpdate, buffer, sizeof(S2C_CorrectionUpdatePacket));
+                size_t offset = 0;
+                std::memcpy(&correctionUpdate.flags, buffer + offset, sizeof(correctionUpdate.flags)); offset += sizeof(correctionUpdate.flags);
+                std::memcpy(&correctionUpdate.type, buffer + offset, sizeof(correctionUpdate.type)); offset += sizeof(correctionUpdate.type);
+                std::memcpy(&correctionUpdate.timestamp, buffer + offset, sizeof(correctionUpdate.timestamp)); offset += sizeof(correctionUpdate.timestamp);
+                std::memcpy(&correctionUpdate.matchID, buffer + offset, sizeof(correctionUpdate.matchID)); offset += sizeof(correctionUpdate.matchID);
+                std::memcpy(&correctionUpdate.correctionRequired, buffer + offset, sizeof(correctionUpdate.correctionRequired)); offset += sizeof(correctionUpdate.correctionRequired);
+                std::memcpy(&correctionUpdate.irregularPlayerID, buffer + offset, sizeof(correctionUpdate.irregularPlayerID)); offset += sizeof(correctionUpdate.irregularPlayerID);
+                std::memcpy(&correctionUpdate.irregularityCount, buffer + offset, sizeof(correctionUpdate.irregularityCount)); offset += sizeof(correctionUpdate.irregularityCount);
+                std::memcpy(&correctionUpdate.irregularityEventID, buffer + offset, sizeof(correctionUpdate.irregularityEventID)); offset += sizeof(correctionUpdate.irregularityEventID);
+                std::memcpy(&correctionUpdate.movementBackRequired, buffer + offset, sizeof(correctionUpdate.movementBackRequired)); offset += sizeof(correctionUpdate.movementBackRequired);
+                std::memcpy(&correctionUpdate.backPlayerID, buffer + offset, sizeof(correctionUpdate.backPlayerID)); offset += sizeof(correctionUpdate.backPlayerID);
+                std::memcpy(&correctionUpdate.backMovementID, buffer + offset, sizeof(correctionUpdate.backMovementID)); offset += sizeof(correctionUpdate.backMovementID);
+                std::memcpy(&correctionUpdate.backPosX, buffer + offset, sizeof(correctionUpdate.backPosX)); offset += sizeof(correctionUpdate.backPosX);
+                std::memcpy(&correctionUpdate.backPosY, buffer + offset, sizeof(correctionUpdate.backPosY)); offset += sizeof(correctionUpdate.backPosY);
 
                 if (!PrepareIncomingUpdate(correctionUpdate.timestamp, correctionUpdate.matchID)) continue;
 
@@ -471,7 +518,15 @@ public:
                 if (received < sizeof(S2C_GameOverUpdatePacket)) continue;
 
                 S2C_GameOverUpdatePacket gameOverUpdate;
-                std::memcpy(&gameOverUpdate, buffer, sizeof(S2C_GameOverUpdatePacket));
+                size_t offset = 0;
+                std::memcpy(&gameOverUpdate.flags, buffer + offset, sizeof(gameOverUpdate.flags)); offset += sizeof(gameOverUpdate.flags);
+                std::memcpy(&gameOverUpdate.type, buffer + offset, sizeof(gameOverUpdate.type)); offset += sizeof(gameOverUpdate.type);
+                std::memcpy(&gameOverUpdate.timestamp, buffer + offset, sizeof(gameOverUpdate.timestamp)); offset += sizeof(gameOverUpdate.timestamp);
+                std::memcpy(&gameOverUpdate.matchID, buffer + offset, sizeof(gameOverUpdate.matchID)); offset += sizeof(gameOverUpdate.matchID);
+                std::memcpy(&gameOverUpdate.isGameOver, buffer + offset, sizeof(gameOverUpdate.isGameOver)); offset += sizeof(gameOverUpdate.isGameOver);
+                std::memcpy(&gameOverUpdate.winnerID, buffer + offset, sizeof(gameOverUpdate.winnerID)); offset += sizeof(gameOverUpdate.winnerID);
+                std::memcpy(&gameOverUpdate.gameOverByIrregularities, buffer + offset, sizeof(gameOverUpdate.gameOverByIrregularities)); offset += sizeof(gameOverUpdate.gameOverByIrregularities);
+                std::memcpy(&gameOverUpdate.irregularPlayerID, buffer + offset, sizeof(gameOverUpdate.irregularPlayerID)); offset += sizeof(gameOverUpdate.irregularPlayerID);
 
                 if (!PrepareIncomingUpdate(gameOverUpdate.timestamp, gameOverUpdate.matchID)) continue;
 
@@ -485,7 +540,10 @@ public:
             }
             else if (type == (short)PacketType::Ack) {
                 S2C_AckPacket ack;
-                std::memcpy(&ack, buffer, sizeof(S2C_AckPacket));
+                size_t offset = 0;
+                std::memcpy(&ack.flags, buffer + offset, sizeof(ack.flags)); offset += sizeof(ack.flags);
+                std::memcpy(&ack.type, buffer + offset, sizeof(ack.type)); offset += sizeof(ack.type);
+                std::memcpy(&ack.ackedPacketID, buffer + offset, sizeof(ack.ackedPacketID)); offset += sizeof(ack.ackedPacketID);
 
                 for (size_t i = 0; i < unackedPackets.size(); ) {
                     if (unackedPackets[i].packet.packetID == ack.ackedPacketID) {

@@ -340,7 +340,13 @@ void Server::DispatchReceivedPacket(const ReceivedPacket& packet) {
     // solo demuestra que sigue vivo y permite calcular el RTT.
     if (packet.received == sizeof(C2S_PongPacket) && packetType == (short)PacketType::Pong) {
         C2S_PongPacket pong;
-        std::memcpy(&pong, buffer, sizeof(C2S_PongPacket));
+        size_t offset = 0;
+        std::memcpy(&pong.flags, buffer + offset, sizeof(pong.flags)); offset += sizeof(pong.flags);
+        std::memcpy(&pong.type, buffer + offset, sizeof(pong.type)); offset += sizeof(pong.type);
+        std::memcpy(&pong.matchID, buffer + offset, sizeof(pong.matchID)); offset += sizeof(pong.matchID);
+        std::memcpy(&pong.playerID, buffer + offset, sizeof(pong.playerID)); offset += sizeof(pong.playerID);
+        std::memcpy(&pong.pingID, buffer + offset, sizeof(pong.pingID)); offset += sizeof(pong.pingID);
+        std::memcpy(&pong.timestamp, buffer + offset, sizeof(pong.timestamp)); offset += sizeof(pong.timestamp);
 
         if (pong.matchID == 0) return;
 
@@ -357,7 +363,17 @@ void Server::DispatchReceivedPacket(const ReceivedPacket& packet) {
     if (packet.received < sizeof(C2S_InputPacket)) return;
 
     C2S_InputPacket in;
-    std::memcpy(&in, buffer, sizeof(C2S_InputPacket));
+    size_t offset = 0;
+    std::memcpy(&in.flags, buffer + offset, sizeof(in.flags)); offset += sizeof(in.flags);
+    std::memcpy(&in.packetID, buffer + offset, sizeof(in.packetID)); offset += sizeof(in.packetID);
+    std::memcpy(&in.type, buffer + offset, sizeof(in.type)); offset += sizeof(in.type);
+    std::memcpy(&in.playerID, buffer + offset, sizeof(in.playerID)); offset += sizeof(in.playerID);
+    std::memcpy(&in.inputMask, buffer + offset, sizeof(in.inputMask)); offset += sizeof(in.inputMask);
+    std::memcpy(&in.matchID, buffer + offset, sizeof(in.matchID)); offset += sizeof(in.matchID);
+    std::memcpy(&in.movementID, buffer + offset, sizeof(in.movementID)); offset += sizeof(in.movementID);
+    std::memcpy(&in.hasPredictedPosition, buffer + offset, sizeof(in.hasPredictedPosition)); offset += sizeof(in.hasPredictedPosition);
+    std::memcpy(&in.predictedPosX, buffer + offset, sizeof(in.predictedPosX)); offset += sizeof(in.predictedPosX);
+    std::memcpy(&in.predictedPosY, buffer + offset, sizeof(in.predictedPosY)); offset += sizeof(in.predictedPosY);
 
     if (in.matchID == 0) return;
 
@@ -898,7 +914,19 @@ void Server::BroadcastState(MatchData& match) {
             std::memcpy(bufferPlayer + offset, &playerUpdate.type, sizeof(playerUpdate.type)); offset += sizeof(playerUpdate.type);
             std::memcpy(bufferPlayer + offset, &playerUpdate.timestamp, sizeof(playerUpdate.timestamp)); offset += sizeof(playerUpdate.timestamp);
             std::memcpy(bufferPlayer + offset, &playerUpdate.matchID, sizeof(playerUpdate.matchID)); offset += sizeof(playerUpdate.matchID);
-            std::memcpy(bufferPlayer + offset, &playerUpdate.player, sizeof(playerUpdate.player)); offset += sizeof(playerUpdate.player);
+
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.id, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.posX, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.posY, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.velX, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.velY, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.onGround, sizeof(bool)); offset += sizeof(bool);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.facingRight, sizeof(bool)); offset += sizeof(bool);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.isTaunting, sizeof(bool)); offset += sizeof(bool);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.hp, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.lives, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player.lastProcessedMovementID, sizeof(unsigned short)); offset += sizeof(unsigned short);
+
             udpSocket.send(bufferPlayer, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
         }
 
@@ -917,7 +945,15 @@ void Server::BroadcastState(MatchData& match) {
         std::memcpy(bufferBullet + offset, &bulletUpdate.type, sizeof(bulletUpdate.type)); offset += sizeof(bulletUpdate.type);
         std::memcpy(bufferBullet + offset, &bulletUpdate.timestamp, sizeof(bulletUpdate.timestamp)); offset += sizeof(bulletUpdate.timestamp);
         std::memcpy(bufferBullet + offset, &bulletUpdate.matchID, sizeof(bulletUpdate.matchID)); offset += sizeof(bulletUpdate.matchID);
-        std::memcpy(bufferBullet + offset, &bulletUpdate.bullets, sizeof(bulletUpdate.bullets)); offset += sizeof(bulletUpdate.bullets);
+        
+        for (short b = 0; b < MAX_BULLETS; b++) {
+            std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].active, sizeof(bool)); offset += sizeof(bool);
+            std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].posX, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].posY, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].velX, sizeof(short)); offset += sizeof(short);
+            std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].ownerID, sizeof(short)); offset += sizeof(short);
+        }
+
         udpSocket.send(bufferBullet, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
 
         // Enviamos tambien el update de correccion aunque este desactivado.
