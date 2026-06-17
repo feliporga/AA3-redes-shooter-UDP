@@ -71,6 +71,7 @@ enum InputFlags : short {
 };
 
 #pragma pack(push, 1) 
+// Prediction I
 // Paquete de Input (Cliente -> Servidor UDP)
 struct C2S_InputPacket {
     uint8_t flags = NORMAL_PACKET;
@@ -96,6 +97,7 @@ struct S2C_AckPacket {
     unsigned short ackedPacketID;
 };
 
+// PingPong I
 // Paquete Ping (Servidor UDP -> Cliente)
 // El servidor lo envia de forma periodica para comprobar que el cliente sigue vivo.
 // timestamp guarda el tiempo de envio del servidor y luego sirve para calcular el RTT.
@@ -151,6 +153,7 @@ struct S2C_TimeoutWarningPacket {
     short type = (short)PacketType::TimeoutWarning;
 };
 
+// Interpolation I
 // Update de posicion de un jugador (Servidor UDP -> Cliente)
 // Segun la teoria de movimiento/interpolacion, el servidor no envia todo el mundo:
 // envia la posicion buena del jugador y el cliente la guarda para interpolar.
@@ -172,6 +175,7 @@ struct S2C_BulletUpdatePacket {
     BulletState bullets[MAX_BULLETS];
 };
 
+// Validation I
 // Update de correccion/reconciliacion (Servidor UDP -> Cliente)
 // Solo se envia cuando el servidor detecta irregularidad o necesita mandar BACK.
 struct S2C_CorrectionUpdatePacket {

@@ -1,6 +1,7 @@
 #include "Server.h"
 
 Server::Server(unsigned short port) : port(port), isRunning(false), driver(nullptr), con(nullptr), stopPool(false) {
+    // Threading II
     // Se crean hilos para procesar paquetes sin parar el servidor
     for (short i = 0; i < 4; i++) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
@@ -20,6 +21,7 @@ Server::~Server() {
     }
 }
 
+// Threading III
 // Cada hilo espera hasta que haya una tarea disponible
 void Server::ThreadPoolWorker() {
     while (true) {
@@ -35,6 +37,7 @@ void Server::ThreadPoolWorker() {
     }
 }
 
+// Threading IV
 // Se añade la tarea a la cola y se despierta un hilo libre
 void Server::EnqueueTask(std::function<void()> task) {
     {
@@ -115,6 +118,7 @@ void Server::HandleClientPackets() {
             sf::Socket::Status status = client->receive(packet);
 
             if (status == sf::Socket::Status::Done) {
+                // Threading V
                 // El paquete pasa a un hilo para no bloquear el servidor
                 EnqueueTask([this, client, packet]() mutable {
                     short typeInt;
@@ -430,6 +434,7 @@ void Server::ProcessMatchmaking() {
     }
 }
 
+// Synchronization I
 void Server::StartGameForPlayers(sf::TcpSocket* p1, sf::TcpSocket* p2, bool isCompetitive) {
     // Se guarda si esta partida cuenta para ranking
     competitivePlayers[p1] = isCompetitive;

@@ -230,6 +230,7 @@ public:
                 else if (type == PacketType::RegisterSuccess) {
                     std::cout << "[CLIENTE] Registro completado. Ya puedes loguearte." << std::endl;
                 }
+                // Synchronization II
                 else if (type == PacketType::GameStart) {
                     short pID;
                     unsigned short matchID;
@@ -275,6 +276,7 @@ public:
 
     // UDP
 
+    // Prediction V
     void SendUDPInput(short mask, unsigned short movementID, bool hasPredictedPosition, short predictedPosX, short predictedPosY) {
         if (!serverUdpIp.has_value()) return;
 
@@ -349,6 +351,7 @@ public:
         unackedPackets.push_back({ packet, time });
     }
 
+    // PingPong III
     void SendUDPPong(unsigned short pingID, unsigned int pingTimestamp) {
         if (!serverUdpIp.has_value()) return;
         if (myPlayerID == 0 || currentMatchID == 0) return;
@@ -389,6 +392,7 @@ public:
             short type;
             std::memcpy(&type, buffer + 1, sizeof(short)); // Saltamos el byte de flags
 
+            // PingPong II
             if (type == (short)PacketType::Ping) {
                 if (received < sizeof(S2C_PingPacket)) continue;
 
@@ -474,6 +478,7 @@ public:
                 // Entregamos el estado base solo cuando ya tenemos jugadores, balas y correccion del mismo tick.
                 TryQueueBaseState();
             }
+            // Validation II
             else if (type == (short)PacketType::CorrectionUpdate) {
                 connectionWarning = false;
                 if (received < sizeof(S2C_CorrectionUpdatePacket)) continue;

@@ -208,6 +208,7 @@ void GameScene::SimulateLocalMovement(short inputMask, Transform& transform, sho
     }
 }
 
+// Prediction III
 void GameScene::ApplyLocalPrediction(short inputMask) {
     // Prediccion local: el jugador se mueve inmediatamente sin esperar al siguiente update del servidor.
     if (!hasInitialServerState || NM.myPlayerID == 0) return;
@@ -221,6 +222,7 @@ void GameScene::ApplyLocalPrediction(short inputMask) {
         localPredictedOnGround);
 }
 
+// Validation IV
 void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
 
@@ -312,6 +314,7 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
     }
 }
 
+// Interpolation III
 void GameScene::AddRemotePositionSample(const PlayerState& serverPlayer, unsigned int timestamp) {
     RemotePositionSample newSample;
     newSample.timestamp = timestamp;
@@ -343,6 +346,7 @@ void GameScene::AddRemotePositionSample(const PlayerState& serverPlayer, unsigne
     }
 }
 
+// Interpolation IV
 void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
     if (!hasInitialServerState || NM.myPlayerID == 0 || remotePositionSamples.empty()) return;
 
@@ -475,6 +479,7 @@ void GameScene::Update() {
             predictedPosY = (short)playerModels[localIndex].transform.position.y;
             hasPredictedPosition = true;
 
+            // Prediction IV
             PendingMovement newMovement;
             newMovement.movementID = movementID;
             newMovement.inputMask = mask;
@@ -502,6 +507,7 @@ void GameScene::Update() {
     NM.RetryUnackedPackets(currentTime);
     NM.ListenUDP();
 
+    // Validation III
     // La escena se actualiza con los datos que manda el servidor
     if (NM.newStateReceived) {
         // Procesamos todos los estados locales reconstruidos acumulados para alimentar la interpolacion del rival.

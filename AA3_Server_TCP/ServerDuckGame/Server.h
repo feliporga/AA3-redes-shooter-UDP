@@ -67,6 +67,7 @@ private:
     // Guarda el nombre del rival aunque se cierre el juego
     std::map<sf::TcpSocket*, std::string> opponentUsers;
 
+    // Threading I
     // Los hilos usan estos datos para coger tareas pendientes
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
@@ -90,7 +91,7 @@ private:
     bool CheckUserLogin(const std::string& user, const std::string& password);
     bool RegisterUser(const std::string& user, const std::string& password);
 
-	// Funciones para procesar los paquetes recibidos
+    // Funciones para procesar los paquetes recibidos
     void AcceptNewClient();
     void HandleClientPackets();
     void SendRankingToClient(sf::TcpSocket* client);

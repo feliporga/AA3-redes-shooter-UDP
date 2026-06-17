@@ -21,6 +21,7 @@ struct PlayerModel {
     Renderer* activeRenderer = nullptr;
 };
 
+// Prediction II
 // Input local aplicado antes de recibir confirmación del servidor
 struct PendingMovement {
     unsigned short movementID;
@@ -35,6 +36,7 @@ struct PendingMovement {
     bool onGround;
 };
 
+// Interpolation II
 // Posicion recibida del rival para poder mostrarlo interpolado
 struct RemotePositionSample {
     unsigned int timestamp;
