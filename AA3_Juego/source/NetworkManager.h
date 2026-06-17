@@ -294,8 +294,19 @@ public:
         packet.predictedPosY = predictedPosY;
 
         char buffer[sizeof(C2S_InputPacket)];
-        std::memcpy(buffer, &packet, sizeof(C2S_InputPacket));
-        udpSocket.send(buffer, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+        size_t offset = 0;
+        std::memcpy(buffer + offset, &packet.flags, sizeof(packet.flags)); offset += sizeof(packet.flags);
+        std::memcpy(buffer + offset, &packet.packetID, sizeof(packet.packetID)); offset += sizeof(packet.packetID);
+        std::memcpy(buffer + offset, &packet.type, sizeof(packet.type)); offset += sizeof(packet.type);
+        std::memcpy(buffer + offset, &packet.playerID, sizeof(packet.playerID)); offset += sizeof(packet.playerID);
+        std::memcpy(buffer + offset, &packet.inputMask, sizeof(packet.inputMask)); offset += sizeof(packet.inputMask);
+        std::memcpy(buffer + offset, &packet.matchID, sizeof(packet.matchID)); offset += sizeof(packet.matchID);
+        std::memcpy(buffer + offset, &packet.movementID, sizeof(packet.movementID)); offset += sizeof(packet.movementID);
+        std::memcpy(buffer + offset, &packet.hasPredictedPosition, sizeof(packet.hasPredictedPosition)); offset += sizeof(packet.hasPredictedPosition);
+        std::memcpy(buffer + offset, &packet.predictedPosX, sizeof(packet.predictedPosX)); offset += sizeof(packet.predictedPosX);
+        std::memcpy(buffer + offset, &packet.predictedPosY, sizeof(packet.predictedPosY)); offset += sizeof(packet.predictedPosY);
+
+        udpSocket.send(buffer, offset, serverUdpIp.value(), dynamicUdpPort);
     }
 
     void SendCriticalUDPInput(short mask, unsigned int time) {
@@ -321,8 +332,19 @@ public:
         packet.predictedPosY = 0;
 
         char buffer[sizeof(C2S_InputPacket)];
-        std::memcpy(buffer, &packet, sizeof(C2S_InputPacket));
-        udpSocket.send(buffer, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+        size_t offset = 0;
+        std::memcpy(buffer + offset, &packet.flags, sizeof(packet.flags)); offset += sizeof(packet.flags);
+        std::memcpy(buffer + offset, &packet.packetID, sizeof(packet.packetID)); offset += sizeof(packet.packetID);
+        std::memcpy(buffer + offset, &packet.type, sizeof(packet.type)); offset += sizeof(packet.type);
+        std::memcpy(buffer + offset, &packet.playerID, sizeof(packet.playerID)); offset += sizeof(packet.playerID);
+        std::memcpy(buffer + offset, &packet.inputMask, sizeof(packet.inputMask)); offset += sizeof(packet.inputMask);
+        std::memcpy(buffer + offset, &packet.matchID, sizeof(packet.matchID)); offset += sizeof(packet.matchID);
+        std::memcpy(buffer + offset, &packet.movementID, sizeof(packet.movementID)); offset += sizeof(packet.movementID);
+        std::memcpy(buffer + offset, &packet.hasPredictedPosition, sizeof(packet.hasPredictedPosition)); offset += sizeof(packet.hasPredictedPosition);
+        std::memcpy(buffer + offset, &packet.predictedPosX, sizeof(packet.predictedPosX)); offset += sizeof(packet.predictedPosX);
+        std::memcpy(buffer + offset, &packet.predictedPosY, sizeof(packet.predictedPosY)); offset += sizeof(packet.predictedPosY);
+
+        udpSocket.send(buffer, offset, serverUdpIp.value(), dynamicUdpPort);
 
         unackedPackets.push_back({ packet, time });
     }
@@ -342,8 +364,15 @@ public:
         pong.timestamp = pingTimestamp;
 
         char bufferPong[sizeof(C2S_PongPacket)];
-        std::memcpy(bufferPong, &pong, sizeof(C2S_PongPacket));
-        udpSocket.send(bufferPong, sizeof(C2S_PongPacket), serverUdpIp.value(), dynamicUdpPort);
+        size_t offset = 0;
+        std::memcpy(bufferPong + offset, &pong.flags, sizeof(pong.flags)); offset += sizeof(pong.flags);
+        std::memcpy(bufferPong + offset, &pong.type, sizeof(pong.type)); offset += sizeof(pong.type);
+        std::memcpy(bufferPong + offset, &pong.matchID, sizeof(pong.matchID)); offset += sizeof(pong.matchID);
+        std::memcpy(bufferPong + offset, &pong.playerID, sizeof(pong.playerID)); offset += sizeof(pong.playerID);
+        std::memcpy(bufferPong + offset, &pong.pingID, sizeof(pong.pingID)); offset += sizeof(pong.pingID);
+        std::memcpy(bufferPong + offset, &pong.timestamp, sizeof(pong.timestamp)); offset += sizeof(pong.timestamp);
+
+        udpSocket.send(bufferPong, offset, serverUdpIp.value(), dynamicUdpPort);
 
         std::cout << "[CLIENTE] PONG enviado al servidor UDP. PingID: " << pingID << std::endl;
     }
@@ -483,9 +512,22 @@ public:
         short numUnacked = (short)unackedPackets.size();
         for (short i = 0; i < numUnacked; i++) {
             if (currentTime - unackedPackets[i].lastSendTime > 100) {
+                C2S_InputPacket& p = unackedPackets[i].packet;
                 char bufferRetry[sizeof(C2S_InputPacket)];
-                std::memcpy(bufferRetry, &unackedPackets[i].packet, sizeof(C2S_InputPacket));
-                udpSocket.send(bufferRetry, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+                size_t offset = 0;
+
+                std::memcpy(bufferRetry + offset, &p.flags, sizeof(p.flags)); offset += sizeof(p.flags);
+                std::memcpy(bufferRetry + offset, &p.packetID, sizeof(p.packetID)); offset += sizeof(p.packetID);
+                std::memcpy(bufferRetry + offset, &p.type, sizeof(p.type)); offset += sizeof(p.type);
+                std::memcpy(bufferRetry + offset, &p.playerID, sizeof(p.playerID)); offset += sizeof(p.playerID);
+                std::memcpy(bufferRetry + offset, &p.inputMask, sizeof(p.inputMask)); offset += sizeof(p.inputMask);
+                std::memcpy(bufferRetry + offset, &p.matchID, sizeof(p.matchID)); offset += sizeof(p.matchID);
+                std::memcpy(bufferRetry + offset, &p.movementID, sizeof(p.movementID)); offset += sizeof(p.movementID);
+                std::memcpy(bufferRetry + offset, &p.hasPredictedPosition, sizeof(p.hasPredictedPosition)); offset += sizeof(p.hasPredictedPosition);
+                std::memcpy(bufferRetry + offset, &p.predictedPosX, sizeof(p.predictedPosX)); offset += sizeof(p.predictedPosX);
+                std::memcpy(bufferRetry + offset, &p.predictedPosY, sizeof(p.predictedPosY)); offset += sizeof(p.predictedPosY);
+
+                udpSocket.send(bufferRetry, offset, serverUdpIp.value(), dynamicUdpPort);
 
                 unackedPackets[i].lastSendTime = currentTime;
                 std::cout << "[CLIENTE] Reenviando paquete critico/urgente perdido (ID: " << unackedPackets[i].packet.packetID << ")" << std::endl;

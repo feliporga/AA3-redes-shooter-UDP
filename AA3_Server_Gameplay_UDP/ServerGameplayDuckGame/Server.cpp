@@ -546,8 +546,11 @@ void Server::ProcessInputPacket(
         ack.ackedPacketID = in.packetID;
 
         char bufferAck[sizeof(S2C_AckPacket)];
-        std::memcpy(bufferAck, &ack, sizeof(S2C_AckPacket));
-        udpSocket.send(bufferAck, sizeof(S2C_AckPacket), sender.value(), senderPort);
+        size_t offset = 0;
+        std::memcpy(bufferAck + offset, &ack.flags, sizeof(ack.flags)); offset += sizeof(ack.flags);
+        std::memcpy(bufferAck + offset, &ack.type, sizeof(ack.type)); offset += sizeof(ack.type);
+        std::memcpy(bufferAck + offset, &ack.ackedPacketID, sizeof(ack.ackedPacketID)); offset += sizeof(ack.ackedPacketID);
+        udpSocket.send(bufferAck, offset, sender.value(), senderPort);
 
         bool alreadyProcessed =
             std::find(
@@ -890,13 +893,13 @@ void Server::BroadcastState(MatchData& match) {
             playerUpdate.player = match.worldState.players[playerIndex];
 
             char bufferPlayer[sizeof(S2C_PlayerPositionUpdatePacket)];
-            std::memcpy(bufferPlayer, &playerUpdate, sizeof(S2C_PlayerPositionUpdatePacket));
-            udpSocket.send(
-                bufferPlayer,
-                sizeof(S2C_PlayerPositionUpdatePacket),
-                match.clientIPs[clientIndex].value(),
-                match.clientPorts[clientIndex]
-            );
+            size_t offset = 0;
+            std::memcpy(bufferPlayer + offset, &playerUpdate.flags, sizeof(playerUpdate.flags)); offset += sizeof(playerUpdate.flags);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.type, sizeof(playerUpdate.type)); offset += sizeof(playerUpdate.type);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.timestamp, sizeof(playerUpdate.timestamp)); offset += sizeof(playerUpdate.timestamp);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.matchID, sizeof(playerUpdate.matchID)); offset += sizeof(playerUpdate.matchID);
+            std::memcpy(bufferPlayer + offset, &playerUpdate.player, sizeof(playerUpdate.player)); offset += sizeof(playerUpdate.player);
+            udpSocket.send(bufferPlayer, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
         }
 
         // Las balas se envian como update separado para no mezclarlo con la posicion de jugadores.
@@ -909,13 +912,13 @@ void Server::BroadcastState(MatchData& match) {
         }
 
         char bufferBullet[sizeof(S2C_BulletUpdatePacket)];
-        std::memcpy(bufferBullet, &bulletUpdate, sizeof(S2C_BulletUpdatePacket));
-        udpSocket.send(
-            bufferBullet,
-            sizeof(S2C_BulletUpdatePacket),
-            match.clientIPs[clientIndex].value(),
-            match.clientPorts[clientIndex]
-        );
+        size_t offset = 0;
+        std::memcpy(bufferBullet + offset, &bulletUpdate.flags, sizeof(bulletUpdate.flags)); offset += sizeof(bulletUpdate.flags);
+        std::memcpy(bufferBullet + offset, &bulletUpdate.type, sizeof(bulletUpdate.type)); offset += sizeof(bulletUpdate.type);
+        std::memcpy(bufferBullet + offset, &bulletUpdate.timestamp, sizeof(bulletUpdate.timestamp)); offset += sizeof(bulletUpdate.timestamp);
+        std::memcpy(bufferBullet + offset, &bulletUpdate.matchID, sizeof(bulletUpdate.matchID)); offset += sizeof(bulletUpdate.matchID);
+        std::memcpy(bufferBullet + offset, &bulletUpdate.bullets, sizeof(bulletUpdate.bullets)); offset += sizeof(bulletUpdate.bullets);
+        udpSocket.send(bufferBullet, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
 
         // Enviamos tambien el update de correccion aunque este desactivado.
         // Esto evita que el cliente se quede con un BACK antiguo pegado si hubo respawn/correccion.
@@ -935,13 +938,21 @@ void Server::BroadcastState(MatchData& match) {
         correctionUpdate.backPosY = match.worldState.backPosY;
 
         char bufferCorrection[sizeof(S2C_CorrectionUpdatePacket)];
-        std::memcpy(bufferCorrection, &correctionUpdate, sizeof(S2C_CorrectionUpdatePacket));
-        udpSocket.send(
-            bufferCorrection,
-            sizeof(S2C_CorrectionUpdatePacket),
-            match.clientIPs[clientIndex].value(),
-            match.clientPorts[clientIndex]
-        );
+        offset = 0;
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.flags, sizeof(correctionUpdate.flags)); offset += sizeof(correctionUpdate.flags);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.type, sizeof(correctionUpdate.type)); offset += sizeof(correctionUpdate.type);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.timestamp, sizeof(correctionUpdate.timestamp)); offset += sizeof(correctionUpdate.timestamp);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.matchID, sizeof(correctionUpdate.matchID)); offset += sizeof(correctionUpdate.matchID);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.correctionRequired, sizeof(correctionUpdate.correctionRequired)); offset += sizeof(correctionUpdate.correctionRequired);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.irregularPlayerID, sizeof(correctionUpdate.irregularPlayerID)); offset += sizeof(correctionUpdate.irregularPlayerID);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.irregularityCount, sizeof(correctionUpdate.irregularityCount)); offset += sizeof(correctionUpdate.irregularityCount);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.irregularityEventID, sizeof(correctionUpdate.irregularityEventID)); offset += sizeof(correctionUpdate.irregularityEventID);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.movementBackRequired, sizeof(correctionUpdate.movementBackRequired)); offset += sizeof(correctionUpdate.movementBackRequired);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.backPlayerID, sizeof(correctionUpdate.backPlayerID)); offset += sizeof(correctionUpdate.backPlayerID);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.backMovementID, sizeof(correctionUpdate.backMovementID)); offset += sizeof(correctionUpdate.backMovementID);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.backPosX, sizeof(correctionUpdate.backPosX)); offset += sizeof(correctionUpdate.backPosX);
+        std::memcpy(bufferCorrection + offset, &correctionUpdate.backPosY, sizeof(correctionUpdate.backPosY)); offset += sizeof(correctionUpdate.backPosY);
+        udpSocket.send(bufferCorrection, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
 
         // El final de partida tambien va en un update especifico.
         if (match.worldState.isGameOver) {
@@ -954,13 +965,16 @@ void Server::BroadcastState(MatchData& match) {
             gameOverUpdate.irregularPlayerID = match.worldState.irregularPlayerID;
 
             char bufferGameOver[sizeof(S2C_GameOverUpdatePacket)];
-            std::memcpy(bufferGameOver, &gameOverUpdate, sizeof(S2C_GameOverUpdatePacket));
-            udpSocket.send(
-                bufferGameOver,
-                sizeof(S2C_GameOverUpdatePacket),
-                match.clientIPs[clientIndex].value(),
-                match.clientPorts[clientIndex]
-            );
+            offset = 0;
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.flags, sizeof(gameOverUpdate.flags)); offset += sizeof(gameOverUpdate.flags);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.type, sizeof(gameOverUpdate.type)); offset += sizeof(gameOverUpdate.type);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.timestamp, sizeof(gameOverUpdate.timestamp)); offset += sizeof(gameOverUpdate.timestamp);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.matchID, sizeof(gameOverUpdate.matchID)); offset += sizeof(gameOverUpdate.matchID);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.isGameOver, sizeof(gameOverUpdate.isGameOver)); offset += sizeof(gameOverUpdate.isGameOver);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.winnerID, sizeof(gameOverUpdate.winnerID)); offset += sizeof(gameOverUpdate.winnerID);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.gameOverByIrregularities, sizeof(gameOverUpdate.gameOverByIrregularities)); offset += sizeof(gameOverUpdate.gameOverByIrregularities);
+            std::memcpy(bufferGameOver + offset, &gameOverUpdate.irregularPlayerID, sizeof(gameOverUpdate.irregularPlayerID)); offset += sizeof(gameOverUpdate.irregularPlayerID);
+            udpSocket.send(bufferGameOver, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
         }
     }
 }
@@ -1063,8 +1077,14 @@ void Server::SendPingPackets(MatchData& match) {
         match.lastPingTimestamp[i] = ping.timestamp;
 
         char bufferPing[sizeof(S2C_PingPacket)];
-        std::memcpy(bufferPing, &ping, sizeof(S2C_PingPacket));
-        udpSocket.send(bufferPing, sizeof(S2C_PingPacket), match.clientIPs[i].value(), match.clientPorts[i]);
+        size_t offset = 0;
+        std::memcpy(bufferPing + offset, &ping.flags, sizeof(ping.flags)); offset += sizeof(ping.flags);
+        std::memcpy(bufferPing + offset, &ping.type, sizeof(ping.type)); offset += sizeof(ping.type);
+        std::memcpy(bufferPing + offset, &ping.matchID, sizeof(ping.matchID)); offset += sizeof(ping.matchID);
+        std::memcpy(bufferPing + offset, &ping.playerID, sizeof(ping.playerID)); offset += sizeof(ping.playerID);
+        std::memcpy(bufferPing + offset, &ping.pingID, sizeof(ping.pingID)); offset += sizeof(ping.pingID);
+        std::memcpy(bufferPing + offset, &ping.timestamp, sizeof(ping.timestamp)); offset += sizeof(ping.timestamp);
+        udpSocket.send(bufferPing, offset, match.clientIPs[i].value(), match.clientPorts[i]);
 
         match.waitingPong[i] = true;
 
@@ -1142,8 +1162,10 @@ void Server::CheckTimeouts(MatchData& match) {
                 S2C_TimeoutWarningPacket warningPacket;
 
                 char bufferWarning[sizeof(S2C_TimeoutWarningPacket)];
-                std::memcpy(bufferWarning, &warningPacket, sizeof(S2C_TimeoutWarningPacket));
-                udpSocket.send(bufferWarning, sizeof(S2C_TimeoutWarningPacket), match.clientIPs[i].value(), match.clientPorts[i]);
+                size_t offset = 0;
+                std::memcpy(bufferWarning + offset, &warningPacket.flags, sizeof(warningPacket.flags)); offset += sizeof(warningPacket.flags);
+                std::memcpy(bufferWarning + offset, &warningPacket.type, sizeof(warningPacket.type)); offset += sizeof(warningPacket.type);
+                udpSocket.send(bufferWarning, offset, match.clientIPs[i].value(), match.clientPorts[i]);
             }
         }
 
