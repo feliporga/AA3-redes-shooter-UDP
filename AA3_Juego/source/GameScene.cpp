@@ -12,7 +12,7 @@
 // Estos valores controlan la prediccion local y el movimiento suave del rival
 const float LOCAL_PREDICTION_SPEED = 5.0f;
 const unsigned short INTERPOLATION_DELAY = 100;
-const unsigned short MAX_REMOTE_SNAPSHOTS = 30;
+const unsigned short MAX_REMOTE_POSITION_SAMPLES = 30;
 
 
 class TileObject : public Object {
@@ -209,7 +209,7 @@ void GameScene::SimulateLocalMovement(short inputMask, Transform& transform, sho
 }
 
 void GameScene::ApplyLocalPrediction(short inputMask) {
-    // Prediccion local: el jugador se mueve inmediatamente sin esperar al siguiente snapshot del servidor.
+    // Prediccion local: el jugador se mueve inmediatamente sin esperar al siguiente update del servidor.
     if (!hasInitialServerState || NM.myPlayerID == 0) return;
 
     short localIndex = (NM.myPlayerID == 1) ? 0 : 1;
@@ -311,86 +311,87 @@ void GameScene::ReconcileLocalPlayer(const PlayerState& serverPlayer) {
         pendingMovements[i].onGround = localPredictedOnGround;
     }
 }
-void GameScene::AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp) {
-    RemoteSnapshot newSnapshot;
-    newSnapshot.timestamp = timestamp;
-    newSnapshot.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
-    newSnapshot.movementID = serverPlayer.lastProcessedMovementID;
+
+void GameScene::AddRemotePositionSample(const PlayerState& serverPlayer, unsigned int timestamp) {
+    RemotePositionSample newSample;
+    newSample.timestamp = timestamp;
+    newSample.position = Vector2((float)serverPlayer.posX, (float)serverPlayer.posY);
+    newSample.movementID = serverPlayer.lastProcessedMovementID;
 
     bool inserted = false;
 
-    // Los estados del rival se guardan ordenados aunque los paquetes UDP lleguen desordenados
-    // no provoquen que el personaje vuelva atr�s en pantalla.
-    for (std::vector<RemoteSnapshot>::iterator it = remoteSnapshots.begin(); it != remoteSnapshots.end(); ++it) {
-        if (it->movementID == newSnapshot.movementID && it->timestamp == newSnapshot.timestamp) {
+    // Las posiciones del rival se guardan ordenadas aunque los paquetes UDP lleguen desordenados
+    // no provoquen que el personaje vuelva atrás en pantalla.
+    for (std::vector<RemotePositionSample>::iterator it = remotePositionSamples.begin(); it != remotePositionSamples.end(); ++it) {
+        if (it->movementID == newSample.movementID && it->timestamp == newSample.timestamp) {
             return;
         }
 
-        if (it->timestamp > newSnapshot.timestamp) {
-            remoteSnapshots.insert(it, newSnapshot);
+        if (it->timestamp > newSample.timestamp) {
+            remotePositionSamples.insert(it, newSample);
             inserted = true;
             break;
         }
     }
 
     if (!inserted) {
-        remoteSnapshots.push_back(newSnapshot);
+        remotePositionSamples.push_back(newSample);
     }
 
-    if (remoteSnapshots.size() > MAX_REMOTE_SNAPSHOTS) {
-        remoteSnapshots.erase(remoteSnapshots.begin());
+    if (remotePositionSamples.size() > MAX_REMOTE_POSITION_SAMPLES) {
+        remotePositionSamples.erase(remotePositionSamples.begin());
     }
 }
 
 void GameScene::InterpolateRemotePlayer(unsigned int currentTime) {
-    if (!hasInitialServerState || NM.myPlayerID == 0 || remoteSnapshots.empty()) return;
+    if (!hasInitialServerState || NM.myPlayerID == 0 || remotePositionSamples.empty()) return;
 
     short enemyIndex = (NM.myPlayerID == 1) ? 1 : 0;
 
     if (!hasServerTimeOffset) {
-        serverTimeOffset = (int)currentTime - (int)remoteSnapshots.back().timestamp;
+        serverTimeOffset = (int)currentTime - (int)remotePositionSamples.back().timestamp;
         hasServerTimeOffset = true;
     }
 
-    // El rival se dibuja con un peque�o retraso para poder suavizar el movimiento
+    // El rival se dibuja con un pequeño retraso para poder suavizar el movimiento
     // entre los que interpolar y evitar teletransportes
     int renderTimestamp =
         (int)currentTime - serverTimeOffset - (int)INTERPOLATION_DELAY;
 
-    while (remoteSnapshots.size() >= 2 &&
-        (int)remoteSnapshots[1].timestamp <= renderTimestamp) {
-        remoteSnapshots.erase(remoteSnapshots.begin());
+    while (remotePositionSamples.size() >= 2 &&
+        (int)remotePositionSamples[1].timestamp <= renderTimestamp) {
+        remotePositionSamples.erase(remotePositionSamples.begin());
     }
 
-    if (remoteSnapshots.size() == 1) {
-        // Si solo hay un snapshot, esperamos a que entre en la ventana de render para evitar un salto inicial.
-        if ((int)remoteSnapshots[0].timestamp <= renderTimestamp) {
-            playerModels[enemyIndex].transform.position = remoteSnapshots[0].position;
+    if (remotePositionSamples.size() == 1) {
+        // Si solo hay una posicion, esperamos a que entre en la ventana de render para evitar un salto inicial.
+        if ((int)remotePositionSamples[0].timestamp <= renderTimestamp) {
+            playerModels[enemyIndex].transform.position = remotePositionSamples[0].position;
         }
         return;
     }
 
-    RemoteSnapshot& firstSnapshot = remoteSnapshots[0];
-    RemoteSnapshot& secondSnapshot = remoteSnapshots[1];
+    RemotePositionSample& firstSample = remotePositionSamples[0];
+    RemotePositionSample& secondSample = remotePositionSamples[1];
 
-    float timeRange = (float)((int)secondSnapshot.timestamp - (int)firstSnapshot.timestamp);
+    float timeRange = (float)((int)secondSample.timestamp - (int)firstSample.timestamp);
     float interpolationValue = 0.0f;
 
     if (timeRange > 0.0f) {
         interpolationValue =
-            ((float)renderTimestamp - (float)firstSnapshot.timestamp) / timeRange;
+            ((float)renderTimestamp - (float)firstSample.timestamp) / timeRange;
     }
 
     if (interpolationValue < 0.0f) interpolationValue = 0.0f;
     if (interpolationValue > 1.0f) interpolationValue = 1.0f;
 
     playerModels[enemyIndex].transform.position.x =
-        firstSnapshot.position.x +
-        (secondSnapshot.position.x - firstSnapshot.position.x) * interpolationValue;
+        firstSample.position.x +
+        (secondSample.position.x - firstSample.position.x) * interpolationValue;
 
     playerModels[enemyIndex].transform.position.y =
-        firstSnapshot.position.y +
-        (secondSnapshot.position.y - firstSnapshot.position.y) * interpolationValue;
+        firstSample.position.y +
+        (secondSample.position.y - firstSample.position.y) * interpolationValue;
 }
 
 void GameScene::OnEnter() {
@@ -400,7 +401,7 @@ void GameScene::OnEnter() {
     hasInitialServerState = false;
     nextMovementID = 1;
     pendingMovements.clear();
-    remoteSnapshots.clear();
+    remotePositionSamples.clear();
     hasServerTimeOffset = false;
     serverTimeOffset = 0;
 
@@ -496,17 +497,18 @@ void GameScene::Update() {
         }
         prevShoot = currentShoot;
     }
+
     // Se procesan los paquetes de red
     NM.RetryUnackedPackets(currentTime);
     NM.ListenUDP();
 
     // La escena se actualiza con los datos que manda el servidor
     if (NM.newStateReceived) {
-        // Procesamos todos los snapshots acumulados, no solo el ultimo recibido. Asi el buffer de interpolacion del rival tiene mas puntos y evita saltos visuales.
+        // Procesamos todos los estados locales reconstruidos acumulados para alimentar la interpolacion del rival.
         for (std::size_t stateIndex = 0; stateIndex < NM.pendingStates.size(); stateIndex++) {
             NM.lastState = NM.pendingStates[stateIndex];
 
-            // Si UDP entrega un snapshot antiguo, no lo usamos para pisar el estado actual.
+            // Si UDP entrega un update antiguo, no lo usamos para pisar el estado actual.
             if (NM.lastState.timestamp < lastServerTimestamp) {
                 continue;
             }
@@ -547,7 +549,7 @@ void GameScene::Update() {
                 if (!isLocalPlayer) {
                     // Se suaviza el movimiento del rival
                     // El rival se guarda ordenado para que se vea mas suave
-                    AddRemoteSnapshot(s, NM.lastState.timestamp);
+                    AddRemotePositionSample(s, NM.lastState.timestamp);
                 }
 
                 if (s.velX < 0) m.transform.scale = Vector2(1.0f, 1.0f);
@@ -604,7 +606,8 @@ void GameScene::Update() {
                 bulletTransforms[i].position = Vector2((float)NM.lastState.bullets[i].posX, (float)NM.lastState.bullets[i].posY);
             }
         }
-        // Una vez procesada la cola, la vaciamos para esperar los siguientes snapshots.
+
+        // Una vez procesada la cola, la vaciamos para esperar los siguientes estados reconstruidos.
         NM.pendingStates.clear();
         NM.newStateReceived = false;
     }
@@ -639,19 +642,20 @@ void GameScene::Update() {
         }
 
         if (NM.lastState.winnerID == NM.myPlayerID) {
-            statusText->SetText("�VICTORIA! Has ganado la partida.");
+            statusText->SetText("VICTORIA! Has ganado la partida.");
             statusText->SetColor(sf::Color::Green);
         }
 
         else if (lostByIrregularities) {
-            statusText->SetText("�DERROTA POR IRREGULARIDADES!");
+            statusText->SetText("DERROTA POR IRREGULARIDADES!");
             statusText->SetColor(sf::Color::Red);
         }
 
         else {
-            statusText->SetText("�DERROTA! Te has quedado sin vidas.");
+            statusText->SetText("DERROTA! Te has quedado sin vidas.");
             statusText->SetColor(sf::Color::Red);
         }
+
         // La cuenta atras evita volver al menu de golpe
         float remainingTime = RETURN_TO_MENU_DELAY_SECONDS - returnToMenuClock.getElapsedTime().asSeconds();
 
@@ -660,15 +664,15 @@ void GameScene::Update() {
         }
 
         if (NM.lastState.winnerID == NM.myPlayerID) {
-            statusText->SetText("�VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("VICTORIA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Green);
         }
         else if (lostByIrregularities) {
-            statusText->SetText("�DERROTA POR IRREGULARIDADES! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("DERROTA POR IRREGULARIDADES! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Red);
         }
         else {
-            statusText->SetText("�DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
+            statusText->SetText("DERROTA! Volviendo al menu en " + std::to_string((int)remainingTime + 1) + "...");
             statusText->SetColor(sf::Color::Red);
         }
 
@@ -686,7 +690,7 @@ void GameScene::Update() {
             " --- HP Enemigo: " + std::to_string(NM.lastState.players[enemyIndex].hp);
 
         if (NM.connectionWarning) {
-            statusText->SetText("�PELIGRO DE DESCONEXION! REVISA TU RED");
+            statusText->SetText("PELIGRO DE DESCONEXION! REVISA TU RED");
             statusText->SetColor(sf::Color::Red);
         }
         else {

@@ -48,7 +48,7 @@ private:
         unsigned short senderPort;
     };
 
-    struct ClientMovementSnapshot {
+    struct ClientMovementSample {
         unsigned short movementID;
         short inputMask;
         short posX;
@@ -67,7 +67,7 @@ private:
         unsigned int lastProcessedMovementID[2];
 
         // Movimientos predichos que envia el cliente para validar y poder hacer BACK
-        std::vector<ClientMovementSnapshot> pendingMovements[2];
+        std::vector<ClientMovementSample> pendingMovements[2];
         short lastValidPosX[2];
         short lastValidPosY[2];
 
@@ -79,7 +79,7 @@ private:
         short irregularities[2];
         unsigned short irregularityEventID;
 
-        S2C_StatePacket worldState;
+        ClientWorldState worldState;
         sf::Clock serverClock;
         sf::Clock endClock;
 
@@ -168,7 +168,7 @@ private:
     bool CheckGround(short x, short y, short w, short h);
 
     // Validacion de posiciones predichas y reconciliacion BACK
-    void InsertMovementSnapshot(MatchData& match, short playerIndex, const ClientMovementSnapshot& movement);
+    void InsertMovementSample(MatchData& match, short playerIndex, const ClientMovementSample& movement);
     void ValidateMovements(MatchData& match);
 
     // Prepara un BACK. Si countAsIrregularity es false, se usa para respawn o paquetes antiguos y no suma falta.

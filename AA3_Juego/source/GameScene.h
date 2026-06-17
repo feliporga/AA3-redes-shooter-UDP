@@ -31,12 +31,12 @@ struct PendingMovement {
     short posY;
 
     short velX;
-	short velY;
+    short velY;
     bool onGround;
 };
 
-// Estado recibido del rival para poder mostrarlo interpolado
-struct RemoteSnapshot {
+// Posicion recibida del rival para poder mostrarlo interpolado
+struct RemotePositionSample {
     unsigned int timestamp;
     Vector2 position;
 
@@ -53,15 +53,15 @@ private:
     bool returnToMenuTimerStarted;
     unsigned int lastServerTimestamp;
 
-    // Evita aplicar predicción antes de recibir la primera posición oficial del servidor
+    // Evita aplicar predicción antes de recibir la primera posicion oficial del servidor
     bool hasInitialServerState;
 
     // ID independiente de packetID: identifica movimientos normales pendientes de reconciliar
     unsigned short nextMovementID;
     std::vector<PendingMovement> pendingMovements;
 
-    // Buffer de estados del rival, ordenado por timestamp para interpolar aunque UDP llegue desordenado
-    std::vector<RemoteSnapshot> remoteSnapshots;
+    // Buffer de posiciones del rival, ordenado por timestamp para interpolar aunque UDP llegue desordenado
+    std::vector<RemotePositionSample> remotePositionSamples;
     bool hasServerTimeOffset;
     int serverTimeOffset;
 
@@ -85,12 +85,12 @@ private:
     void LoadPlayerAssets(short index, short playerID);
     void LoadMap();
 
-    // Predicción, reconciliación e interpolación del movimiento online
+    // Prediccion, reconciliación e interpolación del movimiento online
     // Simula un tick de movimiento local; se reutiliza para prediccion y para re-simular inputs pendientes.
     void SimulateLocalMovement(short inputMask, Transform& transform, short& velX, short& velY, bool& onGround);
     void ApplyLocalPrediction(short inputMask);
     void ReconcileLocalPlayer(const PlayerState& serverPlayer);
-    void AddRemoteSnapshot(const PlayerState& serverPlayer, unsigned int timestamp);
+    void AddRemotePositionSample(const PlayerState& serverPlayer, unsigned int timestamp);
     void InterpolateRemotePlayer(unsigned int currentTime);
 
     // Funciones auxiliares de prediccion local contra el mapa

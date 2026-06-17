@@ -120,12 +120,12 @@ public:
     // Esta variable indica si el resultado ya se ha enviado
     bool resultReported = false;
 
-    S2C_StatePacket lastState;
+    ClientWorldState lastState;
     bool newStateReceived = false;
 
-    // Estados recibidos del servidor.
-    // Se guardan en cola para que la interpolacion no pierda snapshots si llegan varios entre dos frames.
-    std::vector<S2C_StatePacket> pendingStates;
+    // Estados locales reconstruidos a partir de updates separados del servidor.
+    // No son paquetes de red ni estados completos enviados por el servidor.
+    std::vector<ClientWorldState> pendingStates;
 
     // Como ahora el servidor envia updates separados, esperamos a tener jugadores, balas
     // y correccion del mismo tick antes de entregar un estado sintetizado a GameScene.
@@ -245,10 +245,10 @@ public:
                     // Usamos la IP UDP que envia el servidor TCP para llegar al servidor dedicado de gameplay
                     serverUdpIp = sf::IpAddress::resolve(udpIP);
 
-                    lastState = S2C_StatePacket{};
+                    lastState = ClientWorldState{};
                     newStateReceived = false;
 
-                    // Al empezar una partida nueva no queremos procesar snapshots de la partida anterior.
+                    // Al empezar una partida nueva no queremos procesar estados reconstruidos de la partida anterior.
                     pendingStates.clear();
                     receivedPlayerUpdate[0] = false;
                     receivedPlayerUpdate[1] = false;
@@ -378,7 +378,7 @@ public:
                 short index = playerUpdate.player.id - 1;
                 if (index < 0 || index >= 2) continue;
 
-                // El servidor envia updates de posicion, no un snapshot completo.
+                // El servidor envia updates de posicion, no un estado completo.
                 // El cliente reconstruye su ultimo estado localmente para que GameScene pueda seguir trabajando igual.
                 lastState.players[index] = playerUpdate.player;
                 receivedPlayerUpdate[index] = true;
@@ -444,26 +444,6 @@ public:
                 lastState.irregularPlayerID = gameOverUpdate.irregularPlayerID;
 
                 pendingStates.push_back(lastState);
-                newStateReceived = true;
-            }
-            else if (type == (short)PacketType::UpdateBoard) {
-                // Compatibilidad con la version antigua por si se recibe un snapshot completo.
-                connectionWarning = false;
-                if (received < sizeof(S2C_StatePacket)) continue;
-
-                S2C_StatePacket receivedState;
-                std::memcpy(&receivedState, buffer, sizeof(S2C_StatePacket));
-
-                if (receivedState.matchID != currentMatchID) continue;
-
-                lastState = receivedState;
-                receivedPlayerUpdate[0] = true;
-                receivedPlayerUpdate[1] = true;
-                receivedBulletUpdate = true;
-                receivedCorrectionUpdate = true;
-                baseStateQueued = true;
-
-                pendingStates.push_back(receivedState);
                 newStateReceived = true;
             }
             else if (type == (short)PacketType::Ack) {

@@ -42,7 +42,6 @@ enum class PacketType : short {
     MatchCreatedNotification,
     GameStart,
     GameMove,
-    UpdateBoard,
     ReportResult,
     ResultAcknowledge,
     Ack,
@@ -153,8 +152,8 @@ struct S2C_TimeoutWarningPacket {
 };
 
 // Update de posicion de un jugador (Servidor UDP -> Cliente)
-
-// posicion buena del jugador, cliente la guarda para interpolar.
+// Segun la teoria de movimiento/interpolacion, el servidor no envia todo el mundo:
+// envia la posicion buena del jugador y el cliente la guarda para interpolar.
 struct S2C_PlayerPositionUpdatePacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::PlayerPositionUpdate;
@@ -164,7 +163,7 @@ struct S2C_PlayerPositionUpdatePacket {
 };
 
 // Update de balas (Servidor UDP -> Cliente)
-
+// Se separa de la posicion de jugadores para no depender de un estado completo del mundo.
 struct S2C_BulletUpdatePacket {
     uint8_t flags = NORMAL_PACKET;
     short type = (short)PacketType::BulletUpdate;
@@ -205,10 +204,8 @@ struct S2C_GameOverUpdatePacket {
     short irregularPlayerID = 0;
 };
 
-struct S2C_StatePacket {
-    uint8_t flags = NORMAL_PACKET;
-    short type = (short)PacketType::UpdateBoard;
-    unsigned int timestamp;
+struct ClientWorldState {
+    unsigned int timestamp = 0;
     PlayerState players[2];
     BulletState bullets[MAX_BULLETS];
     bool isGameOver = false;

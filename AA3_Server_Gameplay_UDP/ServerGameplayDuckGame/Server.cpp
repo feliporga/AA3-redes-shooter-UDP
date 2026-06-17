@@ -157,7 +157,7 @@ void Server::RegisterIrregularity(MatchData& match, short playerIndex, const std
     match.irregularities[playerIndex]++;
     match.irregularityEventID++;
 
-    // El snapshot avisa a ambos clientes y permite que el jugador afectado se reconcilie
+    // El update de correccion avisa a ambos clientes y permite que el jugador afectado se reconcilie
     match.worldState.correctionRequired = true;
     match.worldState.irregularPlayerID = match.worldState.players[playerIndex].id;
     match.worldState.irregularityCount = match.irregularities[playerIndex];
@@ -207,7 +207,7 @@ void Server::SetBackCorrection(MatchData& match, short playerIndex, const std::s
     match.worldState.backPosX = match.lastValidPosX[playerIndex];
     match.worldState.backPosY = match.lastValidPosY[playerIndex];
 
-    // Mientras el cliente no haya vuelto a una posicion cercana al BACK, ignoraremos snapshots antiguos.
+    // Mientras el cliente no haya vuelto a una posicion cercana al BACK, ignoraremos movimientos antiguos.
     match.movementCorrectionPending[playerIndex] = true;
     match.correctionBackMovementID[playerIndex] = (unsigned short)match.lastProcessedMovementID[playerIndex];
 
@@ -621,19 +621,19 @@ void Server::ProcessInputPacket(
         match.playerInputs[idx] = in.inputMask;
 
         if (in.hasPredictedPosition) {
-            ClientMovementSnapshot movement;
+            ClientMovementSample movement;
             movement.movementID = in.movementID;
             movement.inputMask = in.inputMask;
             movement.posX = in.predictedPosX;
             movement.posY = in.predictedPosY;
 
             // Guardamos la posicion predicha, pero no se confirma hasta que ValidateMovements la revise.
-            InsertMovementSnapshot(match, idx, movement);
+            InsertMovementSample(match, idx, movement);
         }
     }
 }
 
-void Server::InsertMovementSnapshot(MatchData& match, short playerIndex, const ClientMovementSnapshot& movement) {
+void Server::InsertMovementSample(MatchData& match, short playerIndex, const ClientMovementSample& movement) {
     if (movement.movementID <= match.lastProcessedMovementID[playerIndex]) {
         return;
     }
@@ -668,7 +668,7 @@ void Server::InsertMovementSnapshot(MatchData& match, short playerIndex, const C
         }
     }
 
-    for (std::vector<ClientMovementSnapshot>::iterator it = match.pendingMovements[playerIndex].begin();
+    for (std::vector<ClientMovementSample>::iterator it = match.pendingMovements[playerIndex].begin();
         it != match.pendingMovements[playerIndex].end();
         ++it) {
 
@@ -702,7 +702,7 @@ void Server::ValidateMovements(MatchData& match) {
         if (mask & INPUT_RIGHT) p.facingRight = true;
 
         while (!match.pendingMovements[i].empty()) {
-            ClientMovementSnapshot movement = match.pendingMovements[i].front();
+            ClientMovementSample movement = match.pendingMovements[i].front();
             match.pendingMovements[i].erase(match.pendingMovements[i].begin());
 
             if (movement.movementID <= match.lastProcessedMovementID[i]) {
