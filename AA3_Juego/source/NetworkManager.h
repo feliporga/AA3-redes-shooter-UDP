@@ -293,7 +293,9 @@ public:
         packet.predictedPosX = predictedPosX;
         packet.predictedPosY = predictedPosY;
 
-        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+        char buffer[sizeof(C2S_InputPacket)];
+        std::memcpy(buffer, &packet, sizeof(C2S_InputPacket));
+        udpSocket.send(buffer, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
     }
 
     void SendCriticalUDPInput(short mask, unsigned int time) {
@@ -318,7 +320,10 @@ public:
         packet.predictedPosX = 0;
         packet.predictedPosY = 0;
 
-        udpSocket.send(&packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+        char buffer[sizeof(C2S_InputPacket)];
+        std::memcpy(buffer, &packet, sizeof(C2S_InputPacket));
+        udpSocket.send(buffer, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+
         unackedPackets.push_back({ packet, time });
     }
 
@@ -336,7 +341,10 @@ public:
         // El servidor usara este dato para calcular RTT.
         pong.timestamp = pingTimestamp;
 
-        udpSocket.send(&pong, sizeof(C2S_PongPacket), serverUdpIp.value(), dynamicUdpPort);
+        char bufferPong[sizeof(C2S_PongPacket)];
+        std::memcpy(bufferPong, &pong, sizeof(C2S_PongPacket));
+        udpSocket.send(bufferPong, sizeof(C2S_PongPacket), serverUdpIp.value(), dynamicUdpPort);
+
         std::cout << "[CLIENTE] PONG enviado al servidor UDP. PingID: " << pingID << std::endl;
     }
 
@@ -475,7 +483,10 @@ public:
         short numUnacked = (short)unackedPackets.size();
         for (short i = 0; i < numUnacked; i++) {
             if (currentTime - unackedPackets[i].lastSendTime > 100) {
-                udpSocket.send(&unackedPackets[i].packet, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+                char bufferRetry[sizeof(C2S_InputPacket)];
+                std::memcpy(bufferRetry, &unackedPackets[i].packet, sizeof(C2S_InputPacket));
+                udpSocket.send(bufferRetry, sizeof(C2S_InputPacket), serverUdpIp.value(), dynamicUdpPort);
+
                 unackedPackets[i].lastSendTime = currentTime;
                 std::cout << "[CLIENTE] Reenviando paquete critico/urgente perdido (ID: " << unackedPackets[i].packet.packetID << ")" << std::endl;
             }

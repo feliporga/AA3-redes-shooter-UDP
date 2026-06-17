@@ -544,7 +544,10 @@ void Server::ProcessInputPacket(
 
         S2C_AckPacket ack;
         ack.ackedPacketID = in.packetID;
-        udpSocket.send(&ack, sizeof(S2C_AckPacket), sender.value(), senderPort);
+
+        char bufferAck[sizeof(S2C_AckPacket)];
+        std::memcpy(bufferAck, &ack, sizeof(S2C_AckPacket));
+        udpSocket.send(bufferAck, sizeof(S2C_AckPacket), sender.value(), senderPort);
 
         bool alreadyProcessed =
             std::find(
@@ -592,7 +595,7 @@ void Server::ProcessInputPacket(
         return;
     }
 
-  
+
     // Si el ID ya esta confirmado o es antiguo, se ignora; si es nuevo, se guarda ordenado.
     if (in.movementID > match.lastProcessedMovementID[idx]) {
         match.playerInputs[idx] = in.inputMask;
@@ -886,8 +889,10 @@ void Server::BroadcastState(MatchData& match) {
             playerUpdate.matchID = match.worldState.matchID;
             playerUpdate.player = match.worldState.players[playerIndex];
 
+            char bufferPlayer[sizeof(S2C_PlayerPositionUpdatePacket)];
+            std::memcpy(bufferPlayer, &playerUpdate, sizeof(S2C_PlayerPositionUpdatePacket));
             udpSocket.send(
-                &playerUpdate,
+                bufferPlayer,
                 sizeof(S2C_PlayerPositionUpdatePacket),
                 match.clientIPs[clientIndex].value(),
                 match.clientPorts[clientIndex]
@@ -903,8 +908,10 @@ void Server::BroadcastState(MatchData& match) {
             bulletUpdate.bullets[bulletIndex] = match.worldState.bullets[bulletIndex];
         }
 
+        char bufferBullet[sizeof(S2C_BulletUpdatePacket)];
+        std::memcpy(bufferBullet, &bulletUpdate, sizeof(S2C_BulletUpdatePacket));
         udpSocket.send(
-            &bulletUpdate,
+            bufferBullet,
             sizeof(S2C_BulletUpdatePacket),
             match.clientIPs[clientIndex].value(),
             match.clientPorts[clientIndex]
@@ -927,8 +934,10 @@ void Server::BroadcastState(MatchData& match) {
         correctionUpdate.backPosX = match.worldState.backPosX;
         correctionUpdate.backPosY = match.worldState.backPosY;
 
+        char bufferCorrection[sizeof(S2C_CorrectionUpdatePacket)];
+        std::memcpy(bufferCorrection, &correctionUpdate, sizeof(S2C_CorrectionUpdatePacket));
         udpSocket.send(
-            &correctionUpdate,
+            bufferCorrection,
             sizeof(S2C_CorrectionUpdatePacket),
             match.clientIPs[clientIndex].value(),
             match.clientPorts[clientIndex]
@@ -944,8 +953,10 @@ void Server::BroadcastState(MatchData& match) {
             gameOverUpdate.gameOverByIrregularities = match.worldState.gameOverByIrregularities;
             gameOverUpdate.irregularPlayerID = match.worldState.irregularPlayerID;
 
+            char bufferGameOver[sizeof(S2C_GameOverUpdatePacket)];
+            std::memcpy(bufferGameOver, &gameOverUpdate, sizeof(S2C_GameOverUpdatePacket));
             udpSocket.send(
-                &gameOverUpdate,
+                bufferGameOver,
                 sizeof(S2C_GameOverUpdatePacket),
                 match.clientIPs[clientIndex].value(),
                 match.clientPorts[clientIndex]
@@ -1051,7 +1062,9 @@ void Server::SendPingPackets(MatchData& match) {
         // Cuando llegue el Pong, se calcula RTT con este tiempo.
         match.lastPingTimestamp[i] = ping.timestamp;
 
-        udpSocket.send(&ping, sizeof(S2C_PingPacket), match.clientIPs[i].value(), match.clientPorts[i]);
+        char bufferPing[sizeof(S2C_PingPacket)];
+        std::memcpy(bufferPing, &ping, sizeof(S2C_PingPacket));
+        udpSocket.send(bufferPing, sizeof(S2C_PingPacket), match.clientIPs[i].value(), match.clientPorts[i]);
 
         match.waitingPong[i] = true;
 
@@ -1127,7 +1140,10 @@ void Server::CheckTimeouts(MatchData& match) {
                 << " no responde PONG, enviando AVISO URGENTE al cliente" << std::endl;
             if (match.clientIPs[i].has_value()) {
                 S2C_TimeoutWarningPacket warningPacket;
-                udpSocket.send(&warningPacket, sizeof(S2C_TimeoutWarningPacket), match.clientIPs[i].value(), match.clientPorts[i]);
+
+                char bufferWarning[sizeof(S2C_TimeoutWarningPacket)];
+                std::memcpy(bufferWarning, &warningPacket, sizeof(S2C_TimeoutWarningPacket));
+                udpSocket.send(bufferWarning, sizeof(S2C_TimeoutWarningPacket), match.clientIPs[i].value(), match.clientPorts[i]);
             }
         }
 
