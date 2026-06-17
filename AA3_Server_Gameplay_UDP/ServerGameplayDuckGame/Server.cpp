@@ -3,6 +3,7 @@
 
 Server::Server(unsigned short port) : port(port), isRunning(false), stopPool(false) {
     LoadMapCollisions();
+    // Threading II
     // Se crean varios hilos para repartir el trabajo
     for (short i = 0; i < 4; i++) {
         workers.emplace_back(&Server::ThreadPoolWorker, this);
@@ -25,6 +26,7 @@ Server::~Server() {
     }
 }
 
+// Threading III
 // Cada hilo espera hasta que haya una tarea disponible
 void Server::ThreadPoolWorker() {
     while (true) {
@@ -48,6 +50,7 @@ void Server::ThreadPoolWorker() {
     }
 }
 
+// Threading IV
 void Server::EnqueueTask(std::function<void()> task) {
     {
         std::unique_lock<std::mutex> lock(queueMutex);
@@ -186,6 +189,7 @@ void Server::RegisterIrregularity(MatchData& match, short playerIndex, const std
     }
 }
 
+// Validation III
 // Prepara la reconciliacion BACK. Sirve tanto para un movimiento BAD como para un respawn.
 void Server::SetBackCorrection(MatchData& match, short playerIndex, const std::string& reason, bool countAsIrregularity) {
     if (playerIndex < 0 || playerIndex >= 2) return;
@@ -309,6 +313,7 @@ void Server::ProcessPackets() {
     }
 }
 
+// Threading V
 void Server::DispatchPackets() {
     while (true) {
         ReceivedPacket packet;
@@ -397,6 +402,7 @@ void Server::DispatchReceivedPacket(const ReceivedPacket& packet) {
     }
 }
 
+// PingPong II
 void Server::ProcessPongPacket(
     const C2S_PongPacket& pong,
     const std::optional<sf::IpAddress>& sender,
@@ -425,6 +431,7 @@ void Server::ProcessPongPacket(
     RegisterPong(match, idx, pong.pingID, pong.timestamp);
 }
 
+// Prediction V
 void Server::ProcessInputPacket(
     const C2S_InputPacket& in,
     uint8_t flags,
@@ -632,6 +639,7 @@ void Server::ProcessInputPacket(
     }
 }
 
+// Prediction VI
 void Server::InsertMovementSample(MatchData& match, short playerIndex, const ClientMovementSample& movement) {
     if (movement.movementID <= match.lastProcessedMovementID[playerIndex]) {
         return;
@@ -688,6 +696,7 @@ bool Server::CheckGround(short x, short y, short w, short h) {
     return CheckTileCollision(x, y + 1, w, h);
 }
 
+// Validation II
 void Server::ValidateMovements(MatchData& match) {
     if (match.worldState.isGameOver) return;
 
@@ -885,7 +894,7 @@ bool Server::CheckTileCollision(short x, short y, short w, short h) {
     return false;
 }
 
-
+// Interpolation V
 //posiciones de jugadores, balas, correcciones y game over.
 void Server::BroadcastState(MatchData& match) {
     unsigned int timestamp = match.serverClock.getElapsedTime().asMilliseconds();
@@ -945,7 +954,7 @@ void Server::BroadcastState(MatchData& match) {
         std::memcpy(bufferBullet + offset, &bulletUpdate.type, sizeof(bulletUpdate.type)); offset += sizeof(bulletUpdate.type);
         std::memcpy(bufferBullet + offset, &bulletUpdate.timestamp, sizeof(bulletUpdate.timestamp)); offset += sizeof(bulletUpdate.timestamp);
         std::memcpy(bufferBullet + offset, &bulletUpdate.matchID, sizeof(bulletUpdate.matchID)); offset += sizeof(bulletUpdate.matchID);
-        
+
         for (short b = 0; b < MAX_BULLETS; b++) {
             std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].active, sizeof(bool)); offset += sizeof(bool);
             std::memcpy(bufferBullet + offset, &bulletUpdate.bullets[b].posX, sizeof(short)); offset += sizeof(short);
@@ -956,6 +965,7 @@ void Server::BroadcastState(MatchData& match) {
 
         udpSocket.send(bufferBullet, offset, match.clientIPs[clientIndex].value(), match.clientPorts[clientIndex]);
 
+        // Validation IV
         // Enviamos tambien el update de correccion aunque este desactivado.
         // Esto evita que el cliente se quede con un BACK antiguo pegado si hubo respawn/correccion.
         S2C_CorrectionUpdatePacket correctionUpdate;
@@ -1090,6 +1100,7 @@ void Server::CleanupMatches() {
     }
 }
 
+// PingPong III
 void Server::SendPingPackets(MatchData& match) {
     if (match.worldState.isGameOver) return;
 
@@ -1131,6 +1142,7 @@ void Server::SendPingPackets(MatchData& match) {
     }
 }
 
+// PingPong IV
 void Server::RegisterPong(MatchData& match, short playerIndex, unsigned short pingID, unsigned int pingTimestamp) {
     if (playerIndex < 0 || playerIndex >= 2) return;
     if (match.worldState.isGameOver) return;

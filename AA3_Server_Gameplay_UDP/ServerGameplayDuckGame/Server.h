@@ -111,6 +111,7 @@ private:
 
     std::map<unsigned int, MatchData> matches;
 
+    // Threading I
     // Los hilos usan estos datos para coger tareas pendientes
     std::vector<std::thread> workers;
     std::thread receiverThread;
