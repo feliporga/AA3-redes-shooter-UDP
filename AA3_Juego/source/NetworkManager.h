@@ -9,10 +9,10 @@
 #include "NetworkProtocol.h"
 
 
-#define SERVER_UDP_IP "127.0.0.1"
+#define SERVER_UDP_IP "10.40.1.86"
 #define SERVER_TCP_PORT 55009
 #define SERVER_UDP_PORT 55010
-#define SERVER_TCP_IP "127.0.0.1"
+#define SERVER_TCP_IP "10.40.1.210"
 #define NM NetworkManager::Instance()
 
 
@@ -244,7 +244,7 @@ public:
                     dynamicUdpPort = udpPort;
 
                     // Usamos la IP UDP que envia el servidor TCP para llegar al servidor dedicado de gameplay
-                    serverUdpIp = sf::IpAddress::resolve(udpIP);
+                    serverUdpIp = sf::IpAddress::resolve(SERVER_UDP_IP);
 
                     lastState = ClientWorldState{};
                     newStateReceived = false;
